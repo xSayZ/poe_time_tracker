@@ -165,8 +165,6 @@
   const viewMode = document.getElementById('viewMode');
   const dateSelect = document.getElementById('dateSelect');
   const runSelect = document.getElementById('runSelect');
-  const dateSelectContainer = document.getElementById('dateSelectContainer');
-  const runSelectContainer = document.getElementById('runSelectContainer');
   const resultsBody = document.querySelector('#resultsTable tbody');
   const summaryBar = document.getElementById('summaryBar');
   const standardView = document.getElementById('standardView');
@@ -211,21 +209,17 @@
   // View Mode Switcher
   viewMode.addEventListener('change', () => {
     if (viewMode.value === 'campaign') {
-      dateSelectContainer.style.display = 'none';
-      runSelectContainer.style.display = 'none';
       standardView.style.display = 'none';
       campaignView.style.display = 'block';
       displayCampaignSplits();
     } else {
-      dateSelectContainer.style.display = 'flex';
-      runSelectContainer.style.display = 'flex';
       standardView.style.display = 'block';
       campaignView.style.display = 'none';
       displayRun();
     }
   });
 
-  // Stream parsing for both zone entries and level-ups
+  // Stream parsing for zone entries and level-ups
   async function processFile(file) {
     progressBar.style.display = 'block';
     progressFill.style.width = '0%';
@@ -282,9 +276,8 @@
     }
 
     progressBar.style.display = 'none';
-    const zoneEntries = parsedEntries.filter(e => e.type === 'zone');
-    if (!zoneEntries.length) {
-      alert("No 'You have entered <Zone>' entries found in this file.");
+    if (!parsedEntries.length) {
+      alert("No log entries found in this file.");
       return;
     }
 
@@ -293,24 +286,30 @@
   }
 
   function populateDates() {
-    const zoneEntries = parsedEntries.filter(e => e.type === 'zone');
-    const dates = [...new Set(zoneEntries.map(e => e.dateStr))];
+    const dates = [...new Set(parsedEntries.map(e => e.dateStr))];
     dateSelect.innerHTML = dates.map(d => `<option value="${d}">${d}</option>`).join('') + '<option value="all">All Dates</option>';
     dateSelect.value = dates[dates.length - 1];
     recalculate();
   }
 
   dateSelect.addEventListener('change', recalculate);
-  runSelect.addEventListener('change', displayRun);
+  runSelect.addEventListener('change', () => {
+    if (viewMode.value === 'campaign') {
+      displayCampaignSplits();
+    } else {
+      displayRun();
+    }
+  });
 
   function recalculate() {
-    const zoneEntries = parsedEntries.filter(e => e.type === 'zone');
-    if (!zoneEntries.length) return;
+    if (!parsedEntries.length) return;
     
     const selectedDate = dateSelect.value;
     const filtered = selectedDate === 'all' 
-      ? zoneEntries 
-      : zoneEntries.filter(e => e.dateStr === selectedDate);
+      ? parsedEntries 
+      : parsedEntries.filter(e => e.dateStr === selectedDate);
+
+    filtered.sort((a, b) => a.timestamp - b.timestamp);
 
     const gapMs = parseInt(gapInput.value, 10) * 60 * 1000;
     currentRuns = [];
@@ -330,11 +329,12 @@
     runSelect.innerHTML = currentRuns.map((r, i) => {
       const start = r[0].timeStr;
       const end = r[r.length - 1].timeStr;
-      return `<option value="${i}">Run ${i + 1} (${start} - ${end}) [${r.length} entries]</option>`;
+      const zoneCount = r.filter(e => e.type === 'zone').length;
+      return `<option value="${i}">Run ${i + 1} (${start} - ${end}) [${zoneCount} zones]</option>`;
     }).join('') + '<option value="all">All Runs Combined</option>';
 
     runSelect.value = "0";
-    
+
     if (viewMode.value === 'campaign') {
       displayCampaignSplits();
     } else {
@@ -354,6 +354,9 @@
     const run = runIdx === 'all' ? currentRuns.flat() : currentRuns[parseInt(runIdx, 10)];
     if (!run || !run.length) { resultsBody.innerHTML = ''; return; }
 
+    const zoneEntries = run.filter(e => e.type === 'zone');
+    if (!zoneEntries.length) { resultsBody.innerHTML = ''; return; }
+
     const thresholdMs = parseInt(thresholdInput.value, 10) * 60 * 1000;
     let html = '';
     let prevTime = null;
@@ -362,14 +365,14 @@
     const categoryTotals = { hideout: 0, map: 0, town: 0 };
     let totalTrackedSeconds = 0;
 
-    for (let i = 0; i < run.length; i++) {
-      const entry = run[i];
+    for (let i = 0; i < zoneEntries.length; i++) {
+      const entry = zoneEntries[i];
       const deltaMs = prevTime ? (entry.timestamp - prevTime) : null;
       const isLong = deltaMs && deltaMs > thresholdMs;
       const deltaStr = deltaMs ? formatDelta(Math.floor(deltaMs / 1000)) : '--';
 
       if (prevTime && i > 0) {
-        const prevEntry = run[i - 1];
+        const prevEntry = zoneEntries[i - 1];
         const durationSec = Math.floor(deltaMs / 1000);
         
         zoneTotals[prevEntry.zone] = (zoneTotals[prevEntry.zone] || 0) + durationSec;
@@ -392,10 +395,10 @@
     }
 
     resultsBody.innerHTML = html;
-    renderAnalytics(categoryTotals, zoneTotals, totalTrackedSeconds, run);
+    renderAnalytics(categoryTotals, zoneTotals, totalTrackedSeconds, zoneEntries);
   }
 
-  function renderAnalytics(categoryTotals, zoneTotals, totalSec, run) {
+  function renderAnalytics(categoryTotals, zoneTotals, totalSec, zoneEntries) {
     const total = totalSec || 1;
     const hideoutPct = ((categoryTotals.hideout / total) * 100).toFixed(1);
     const mapPct = ((categoryTotals.map / total) * 100).toFixed(1);
@@ -405,7 +408,7 @@
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5);
 
-    const spanMs = run[run.length - 1].timestamp - run[0].timestamp;
+    const spanMs = zoneEntries[zoneEntries.length - 1].timestamp - zoneEntries[0].timestamp;
 
     summaryBar.innerHTML = `
       <div style="width: 100%; display: flex; flex-direction: column; gap: 0.75rem;">
@@ -425,21 +428,28 @@
         </div>
 
         <div style="display: flex; justify-content: space-between; border-top: 1px solid var(--border); padding-top: 0.5rem; font-size: 0.85rem;">
-          <span>Entries: <strong>${run.length}</strong></span>
+          <span>Entries: <strong>${zoneEntries.length}</strong></span>
           <span>Run Duration: <strong>${formatDelta(Math.floor(spanMs / 1000))}</strong></span>
         </div>
       </div>
     `;
   }
 
-  // Campaign Split Analysis
+  // Campaign Split Analysis filtered per selected run
   function displayCampaignSplits() {
+    const runIdx = runSelect.value;
+    const run = runIdx === 'all' ? currentRuns.flat() : currentRuns[parseInt(runIdx, 10)];
+    if (!run || !run.length) {
+      campaignContent.innerHTML = `<p class="empty-msg">No entries found for this run selection.</p>`;
+      return;
+    }
+
     let currentActIdx = 0;
     let currentLevel = 1;
     const splits = [];
     let campaignStart = null;
 
-    for (const entry of parsedEntries) {
+    for (const entry of run) {
       if (entry.type === 'level') {
         currentLevel = entry.level;
         continue;
@@ -474,7 +484,7 @@
     }
 
     if (!splits.length) {
-      campaignContent.innerHTML = `<p class="empty-msg">No sequential campaign Act transitions found in this log.</p>`;
+      campaignContent.innerHTML = `<p class="empty-msg">No sequential campaign Act transitions found in this selected run.</p>`;
       return;
     }
 
@@ -539,11 +549,12 @@
     const run = runIdx === 'all' ? currentRuns.flat() : currentRuns[parseInt(runIdx, 10)];
     if (!run || !run.length) return;
 
+    const zoneEntries = run.filter(e => e.type === 'zone');
     const thresholdMs = parseInt(thresholdInput.value, 10) * 60 * 1000;
     let csv = "timestamp,delta_seconds,delta_formatted,long_stop,zone,category\n";
     let prevTime = null;
 
-    run.forEach(entry => {
+    zoneEntries.forEach(entry => {
       const deltaMs = prevTime ? (entry.timestamp - prevTime) : 0;
       const deltaSec = Math.floor(deltaMs / 1000);
       const isLong = prevTime && deltaMs > thresholdMs;
@@ -557,12 +568,16 @@
   }
 
   function exportCampaignCSV() {
+    const runIdx = runSelect.value;
+    const run = runIdx === 'all' ? currentRuns.flat() : currentRuns[parseInt(runIdx, 10)];
+    if (!run || !run.length) return;
+
     let currentActIdx = 0;
     let currentLevel = 1;
     const splits = [];
     let campaignStart = null;
 
-    for (const entry of parsedEntries) {
+    for (const entry of run) {
       if (entry.type === 'level') {
         currentLevel = entry.level;
         continue;
@@ -596,7 +611,7 @@
       csv += `"${s.act}",${s.level},${s.splitSec},"${formatDelta(s.splitSec)}",${s.totalSec},"${formatDelta(s.totalSec)}","${s.dateStr} ${s.timeStr}"\n`;
     });
 
-    downloadBlob(csv, `poe_campaign_splits.csv`);
+    downloadBlob(csv, `poe_campaign_splits_${dateSelect.value}.csv`);
   }
 
   function downloadBlob(content, filename) {
