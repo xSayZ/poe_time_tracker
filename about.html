@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>About - Path of Exile Time Tracker</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <nav style="margin-bottom: 1rem;">
+      <a href="index.html" style="color: #646cff; text-decoration: none; font-weight: bold;">← Back to Tracker</a>
+    </nav>
+    <h1>About Path of Exile Time Tracker</h1>
+    <p class="subtitle">Why this tool was built and how it helps you analyze your campaign runs.</p>
+  </header>
+
+  <div class="card">
+    <h2>Why It Was Built</h2>
+    <p>
+      Tracking campaign split times in Path of Exile usually requires either manual timer software like Livesplit or running third-party desktop tools. 
+      This tool was built to give players a lightweight, browser-based alternative that requires zero installation, no dependencies, and no account setup.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>Why You Should Use It</h2>
+    <ul>
+      <li><strong>100% Local & Private:</strong> Your <code>Client.txt</code> log file is parsed directly inside your browser. Nothing is ever uploaded to a server or stored remotely.</li>
+      <li><strong>Automated Act Splits:</strong> Instantly breaks down your progression from Act 1 through Act 10 and Endgame Maps without needing to hit hotkeys while playing.</li>
+      <li><strong>Session Breakdowns:</strong> Filters out chat, deaths, and system text to show pure zone transition deltas, helping you pinpoint long stops and AFK gaps.</li>
+    </ul>
+  </div>
+</div>
+
+<script type="module">
+  import { APP_VERSION, APP_NAME } from './js/version.js';
+  document.title = `About - ${APP_NAME} ${APP_VERSION}`;
+</script>
+</body>
+</html>
