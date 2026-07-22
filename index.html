@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Path of Exile Time Tracker</title>
+  <style>
+    :root {
+      --bg: #0f1115;
+      --card-bg: #181a20;
+      --border: #2a2e39;
+      --accent: #af8d43;
+      --accent-hover: #cbb062;
+      --text: #e2e8f0;
+      --text-muted: #94a3b8;
+      --danger: #ef4444;
+      --danger-bg: rgba(239, 68, 68, 0.15);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); padding: 2rem 1rem; display: flex; justify-content: center; }
+    .container { max-width: 900px; width: 100%; display: flex; flex-direction: column; gap: 1.5rem; }
+
+    header { text-align: center; border-bottom: 1px solid var(--border); padding-bottom: 1.5rem; }
+    h1 { color: var(--accent); font-size: 1.8rem; margin-bottom: 0.5rem; letter-spacing: 0.5px; }
+    p.subtitle { color: var(--text-muted); font-size: 0.95rem; }
+
+    .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; }
+    
+    .settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; }
+    .field { display: flex; flex-direction: column; gap: 0.35rem; }
+    label { font-size: 0.85rem; color: var(--text-muted); font-weight: 600; }
+    input[type="number"] { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 0.5rem; border-radius: 4px; outline: none; }
+    input[type="number"]:focus { border-color: var(--accent); }
+
+    .dropzone { border: 2px dashed var(--border); border-radius: 8px; padding: 2.5rem 1rem; text-align: center; cursor: pointer; transition: all 0.2s ease; background: rgba(255,255,255,0.01); }
+    .dropzone:hover, .dropzone.dragover { border-color: var(--accent); background: rgba(175, 141, 67, 0.05); }
+    .dropzone input { display: none; }
+    .dropzone p { color: var(--text-muted); font-size: 0.95rem; }
+    .dropzone strong { color: var(--accent); }
+
+    .progress-bar { width: 100%; background: var(--bg); border-radius: 4px; overflow: hidden; height: 8px; margin-top: 1rem; display: none; }
+    .progress-fill { height: 100%; background: var(--accent); width: 0%; transition: width 0.1s ease; }
+
+    .selectors { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; justify-content: space-between; }
+    select { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 0.5rem 0.75rem; border-radius: 4px; outline: none; min-width: 180px; }
+    
+    .btn { background: var(--accent); color: #000; border: none; padding: 0.5rem 1rem; font-weight: 600; border-radius: 4px; cursor: pointer; transition: background 0.2s ease; }
+    .btn:hover { background: var(--accent-hover); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.9rem; }
+    th, td { text-align: left; padding: 0.65rem 0.75rem; border-bottom: 1px solid var(--border); }
+    th { color: var(--text-muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; }
+    tr.long-stop { background-color: var(--danger-bg); }
+    .badge-danger { color: var(--danger); font-weight: bold; font-size: 0.75rem; padding: 0.15rem 0.4rem; border: 1px solid var(--danger); border-radius: 3px; margin-left: 0.5rem; }
+
+    .summary-bar { font-size: 0.9rem; color: var(--text-muted); display: flex; gap: 1.5rem; margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--border); }
+    .summary-bar strong { color: var(--text); }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <h1>Path of Exile Time Tracker</h1>
+    <p class="subtitle">Drag & drop your Client.txt file to analyze zone-entry progression and AFK time.</p>
+  </header>
+
+  <!-- Settings -->
+  <div class="card settings-grid">
+    <div class="field">
+      <label for="gap">New Run Gap (Minutes)</label>
+      <input type="number" id="gap" value="30" min="1">
+    </div>
+    <div class="field">
+      <label for="threshold">Long Stop Threshold (Minutes)</label>
+      <input type="number" id="threshold" value="6" min="1">
+    </div>
+  </div>
+
+  <!-- Dropzone -->
+  <div class="card dropzone" id="dropzone">
+    <input type="file" id="fileInput" accept=".txt">
+    <p>Drag & drop your <strong>Client.txt</strong> file here, or click to browse</p>
+    <div class="progress-bar" id="progressBar"><div class="progress-fill" id="progressFill"></div></div>
+  </div>
+
+  <!-- Dashboard Controls (Hidden initially) -->
+  <div class="card" id="dashboard" style="display: none;">
+    <div class="selectors">
+      <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+        <div class="field">
+          <label for="dateSelect">Select Date</label>
+          <select id="dateSelect"></select>
+        </div>
+        <div class="field">
+          <label for="runSelect">Select Run</label>
+          <select id="runSelect"></select>
+        </div>
+      </div>
+      <button class="btn" id="csvBtn">Export to CSV</button>
+    </div>
+
+    <!-- Table Output -->
+    <table id="resultsTable">
+      <thead>
+        <tr>
+          <th>Timestamp</th>
+          <th>Delta</th>
+          <th>Zone</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <div class="summary-bar" id="summaryBar"></div>
+  </div>
+</div>
+
+<script>
+  // Preferences persistence
+  const gapInput = document.getElementById('gap');
+  const thresholdInput = document.getElementById('threshold');
+  
+  gapInput.value = localStorage.getItem('poe_gap') || 30;
+  thresholdInput.value = localStorage.getItem('poe_threshold') || 6;
+
+  gapInput.addEventListener('change', () => {
+    localStorage.setItem('poe_gap', gapInput.value);
+    recalculate();
+  });
+  thresholdInput.addEventListener('change', () => {
+    localStorage.setItem('poe_threshold', thresholdInput.value);
+    recalculate();
+  });
+
+  // State
+  let parsedEntries = [];
+  let currentRuns = [];
+
+  // DOM Elements
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('fileInput');
+  const progressBar = document.getElementById('progressBar');
+  const progressFill = document.getElementById('progressFill');
+  const dashboard = document.getElementById('dashboard');
+  const dateSelect = document.getElementById('dateSelect');
+  const runSelect = document.getElementById('runSelect');
+  const resultsBody = document.querySelector('#resultsTable tbody');
+  const summaryBar = document.getElementById('summaryBar');
+  const csvBtn = document.getElementById('csvBtn');
+
+  // File selection
+  dropzone.addEventListener('click', () => fileInput.click());
+  dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+  dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropzone.classList.remove('dragover');
+    if (e.dataTransfer.files.length) processFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener('change', (e) => {
+    if (e.target.files.length) processFile(e.target.files[0]);
+  });
+
+  // Memory-efficient stream parsing
+  async function processFile(file) {
+    progressBar.style.display = 'block';
+    progressFill.style.width = '0%';
+    parsedEntries = [];
+
+    const stream = file.stream();
+    const reader = stream.getReader();
+    const decoder = new TextDecoder('utf-8');
+    let buffer = '';
+    let bytesRead = 0;
+    const totalBytes = file.size;
+
+    const LINE_REGEX = /^(\d{4}\/\d{2}\/\d{2})\s+(\d{2}:\d{2}:\d{2})\s+.*?: You have entered (.+?)\.?$/i;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      bytesRead += value.byteLength;
+      progressFill.style.width = Math.round((bytesRead / totalBytes) * 100) + '%';
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop(); // Hold remainder
+
+      for (const line of lines) {
+        const match = line.trim().match(LINE_REGEX);
+        if (match) {
+          const dateStr = match[1].replace(/\//g, '-');
+          const timeStr = match[2];
+          const timestamp = new Date(`${dateStr}T${timeStr}`);
+          parsedEntries.push({ dateStr, timeStr, timestamp, zone: match[3] });
+        }
+      }
+    }
+
+    progressBar.style.display = 'none';
+    if (!parsedEntries.length) {
+      alert("No 'You have entered <Zone>' entries found in this file.");
+      return;
+    }
+
+    dashboard.style.display = 'block';
+    populateDates();
+  }
+
+  function populateDates() {
+    const dates = [...new Set(parsedEntries.map(e => e.dateStr))];
+    dateSelect.innerHTML = dates.map(d => `<option value="${d}">${d}</option>`).join('') + '<option value="all">All Dates</option>';
+    dateSelect.value = dates[dates.length - 1]; // Default to most recent date
+    recalculate();
+  }
+
+  dateSelect.addEventListener('change', recalculate);
+  runSelect.addEventListener('change', displayRun);
+
+  function recalculate() {
+    if (!parsedEntries.length) return;
+    
+    const selectedDate = dateSelect.value;
+    const filtered = selectedDate === 'all' 
+      ? parsedEntries 
+      : parsedEntries.filter(e => e.dateStr === selectedDate);
+
+    const gapMs = parseInt(gapInput.value, 10) * 60 * 1000;
+    currentRuns = [];
+
+    if (filtered.length) {
+      let currentRun = [filtered[0]];
+      for (let i = 1; i < filtered.length; i++) {
+        if (filtered[i].timestamp - filtered[i - 1].timestamp > gapMs) {
+          currentRuns.push(currentRun);
+          currentRun = [];
+        }
+        currentRun.push(filtered[i]);
+      }
+      if (currentRun.length) currentRuns.push(currentRun);
+    }
+
+    runSelect.innerHTML = currentRuns.map((r, i) => {
+      const start = r[0].timeStr;
+      const end = r[r.length - 1].timeStr;
+      return `<option value="${i}">Run ${i + 1} (${start} - ${end}) [${r.length} entries]</option>`;
+    }).join('') + '<option value="all">All Runs Combined</option>';
+
+    runSelect.value = "0";
+    displayRun();
+  }
+
+  function displayRun() {
+    const runIdx = runSelect.value;
+    const run = runIdx === 'all' ? currentRuns.flat() : currentRuns[parseInt(runIdx, 10)];
+    if (!run || !run.length) { resultsBody.innerHTML = ''; return; }
+
+    const thresholdMs = parseInt(thresholdInput.value, 10) * 60 * 1000;
+    let html = '';
+    let prevTime = null;
+
+    run.forEach(entry => {
+      const deltaMs = prevTime ? (entry.timestamp - prevTime) : null;
+      const isLong = deltaMs && deltaMs > thresholdMs;
+      const deltaStr = deltaMs ? formatDelta(Math.floor(deltaMs / 1000)) : '--';
+
+      html += `
+        <tr class="${isLong ? 'long-stop' : ''}">
+          <td>${entry.dateStr} ${entry.timeStr}</td>
+          <td>${deltaStr}</td>
+          <td>
+            ${entry.zone}
+            ${isLong ? '<span class="badge-danger">LONG STOP</span>' : ''}
+          </td>
+        </tr>
+      `;
+      prevTime = entry.timestamp;
+    });
+
+    resultsBody.innerHTML = html;
+
+    const spanMs = run[run.length - 1].timestamp - run[0].timestamp;
+    summaryBar.innerHTML = `
+      <span>Entries: <strong>${run.length}</strong></span>
+      <span>Run Duration: <strong>${formatDelta(Math.floor(spanMs / 1000))}</strong></span>
+    `;
+  }
+
+  function formatDelta(totalSeconds) {
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    if (hours > 0) {
+      return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  }
+
+  csvBtn.addEventListener('click', () => {
+    const runIdx = runSelect.value;
+    const run = runIdx === 'all' ? currentRuns.flat() : currentRuns[parseInt(runIdx, 10)];
+    if (!run || !run.length) return;
+
+    const thresholdMs = parseInt(thresholdInput.value, 10) * 60 * 1000;
+    let csv = "timestamp,delta_seconds,delta_formatted,long_stop,zone\n";
+    let prevTime = null;
+
+    run.forEach(entry => {
+      const deltaMs = prevTime ? (entry.timestamp - prevTime) : 0;
+      const deltaSec = Math.floor(deltaMs / 1000);
+      const isLong = prevTime && deltaMs > thresholdMs;
+
+      csv += `"${entry.dateStr} ${entry.timeStr}",${deltaSec},"${formatDelta(deltaSec)}","${isLong ? 'YES' : ''}","${entry.zone.replace(/"/g, '""')}"\n`;
+      prevTime = entry.timestamp;
+    });
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `poe_time_tracker_${dateSelect.value}.csv`;
+    link.click();
+  });
+</script>
+</body>
+</html>
