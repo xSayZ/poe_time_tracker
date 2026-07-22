@@ -42,8 +42,8 @@
     .progress-bar { width: 100%; background: var(--bg); border-radius: 4px; overflow: hidden; height: 8px; margin-top: 1rem; display: none; }
     .progress-fill { height: 100%; background: var(--accent); width: 0%; transition: width 0.1s ease; }
 
-    .selectors { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; justify-content: space-between; }
-    select { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 0.5rem 0.75rem; border-radius: 4px; outline: none; min-width: 180px; }
+    .selectors { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+    select { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 0.5rem 0.75rem; border-radius: 4px; outline: none; min-width: 160px; }
     
     .btn { background: var(--accent); color: #000; border: none; padding: 0.5rem 1rem; font-weight: 600; border-radius: 4px; cursor: pointer; transition: background 0.2s ease; }
     .btn:hover { background: var(--accent-hover); }
@@ -55,8 +55,12 @@
     tr.long-stop { background-color: var(--danger-bg); }
     .badge-danger { color: var(--danger); font-weight: bold; font-size: 0.75rem; padding: 0.15rem 0.4rem; border: 1px solid var(--danger); border-radius: 3px; margin-left: 0.5rem; }
 
-    .summary-bar { font-size: 0.9rem; color: var(--text-muted); display: flex; gap: 1.5rem; margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--border); }
+    .summary-bar { font-size: 0.9rem; color: var(--text-muted); display: flex; gap: 1.5rem; margin-bottom: 1rem; }
     .summary-bar strong { color: var(--text); }
+    
+    .campaign-title { color: var(--accent); font-size: 1.2rem; margin-bottom: 0.5rem; }
+    .campaign-subtitle { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem; }
+    .empty-msg { color: var(--text-muted); font-size: 0.95rem; padding: 1rem 0; text-align: center; }
   </style>
 </head>
 <body>
@@ -64,7 +68,7 @@
 <div class="container">
   <header>
     <h1>Path of Exile Time Tracker</h1>
-    <p class="subtitle">Drag & drop your Client.txt file to analyze zone-entry progression and AFK time.</p>
+    <p class="subtitle">Drag & drop your Client.txt file to analyze zone-entry progression and campaign splits.</p>
   </header>
 
   <!-- Settings -->
@@ -86,15 +90,22 @@
     <div class="progress-bar" id="progressBar"><div class="progress-fill" id="progressFill"></div></div>
   </div>
 
-  <!-- Dashboard Controls (Hidden initially) -->
+  <!-- Dashboard Controls -->
   <div class="card" id="dashboard" style="display: none;">
     <div class="selectors">
       <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
         <div class="field">
+          <label for="viewMode">View Mode</label>
+          <select id="viewMode">
+            <option value="standard">Standard Session Runs</option>
+            <option value="campaign">Campaign Act Splits</option>
+          </select>
+        </div>
+        <div class="field" id="dateSelectContainer">
           <label for="dateSelect">Select Date</label>
           <select id="dateSelect"></select>
         </div>
-        <div class="field">
+        <div class="field" id="runSelectContainer">
           <label for="runSelect">Select Run</label>
           <select id="runSelect"></select>
         </div>
@@ -102,19 +113,25 @@
       <button class="btn" id="csvBtn">Export to CSV</button>
     </div>
 
-    <!-- Table Output -->
-    <table id="resultsTable">
-      <thead>
-        <tr>
-          <th>Timestamp</th>
-          <th>Delta</th>
-          <th>Zone</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
+    <!-- Standard Session View Container -->
+    <div id="standardView">
+      <div class="summary-bar" id="summaryBar"></div>
+      <table id="resultsTable">
+        <thead>
+          <tr>
+            <th>Timestamp</th>
+            <th>Delta</th>
+            <th>Zone</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
 
-    <div class="summary-bar" id="summaryBar"></div>
+    <!-- Optional Campaign Act Splits View Container -->
+    <div id="campaignView" style="display: none;">
+      <div id="campaignContent"></div>
+    </div>
   </div>
 </div>
 
@@ -145,16 +162,37 @@
   const progressBar = document.getElementById('progressBar');
   const progressFill = document.getElementById('progressFill');
   const dashboard = document.getElementById('dashboard');
+  const viewMode = document.getElementById('viewMode');
   const dateSelect = document.getElementById('dateSelect');
   const runSelect = document.getElementById('runSelect');
+  const dateSelectContainer = document.getElementById('dateSelectContainer');
+  const runSelectContainer = document.getElementById('runSelectContainer');
   const resultsBody = document.querySelector('#resultsTable tbody');
   const summaryBar = document.getElementById('summaryBar');
+  const standardView = document.getElementById('standardView');
+  const campaignView = document.getElementById('campaignView');
+  const campaignContent = document.getElementById('campaignContent');
   const csvBtn = document.getElementById('csvBtn');
 
   // Town keywords for zone classification
   const TOWN_KEYWORDS = [
     'encampment', 'watch', 'highgate', 'shores', 'bridge', 
     'kingsmarch', 'rogue harbour', 'aspirants\' plaza', 'town'
+  ];
+
+  // Act entry triggers in strict chronological campaign order
+  const ACT_TRIGGERS = [
+    { act: 1,  zone: "Lioneye's Watch" },
+    { act: 2,  zone: "The Forest Encampment" },
+    { act: 3,  zone: "The Sarn Encampment" },
+    { act: 4,  zone: "Highgate" },
+    { act: 5,  zone: "Overseer's Tower" },
+    { act: 6,  zone: "Lioneye's Watch" },
+    { act: 7,  zone: "The Bridge Encampment" },
+    { act: 8,  zone: "The Sarn Encampment" },
+    { act: 9,  zone: "Highgate" },
+    { act: 10, zone: "Oriath Docks" },
+    { act: "Maps", zone: "Karui Shores" }
   ];
 
   // File selection
@@ -170,7 +208,24 @@
     if (e.target.files.length) processFile(e.target.files[0]);
   });
 
-  // Stream parsing
+  // View Mode Switcher
+  viewMode.addEventListener('change', () => {
+    if (viewMode.value === 'campaign') {
+      dateSelectContainer.style.display = 'none';
+      runSelectContainer.style.display = 'none';
+      standardView.style.display = 'none';
+      campaignView.style.display = 'block';
+      displayCampaignSplits();
+    } else {
+      dateSelectContainer.style.display = 'flex';
+      runSelectContainer.style.display = 'flex';
+      standardView.style.display = 'block';
+      campaignView.style.display = 'none';
+      displayRun();
+    }
+  });
+
+  // Stream parsing for both zone entries and level-ups
   async function processFile(file) {
     progressBar.style.display = 'block';
     progressFill.style.width = '0%';
@@ -183,7 +238,8 @@
     let bytesRead = 0;
     const totalBytes = file.size;
 
-    const LINE_REGEX = /^(\d{4}\/\d{2}\/\d{2})\s+(\d{2}:\d{2}:\d{2})\s+.*?: You have entered (.+?)\.?$/i;
+    const ZONE_REGEX = /^(\d{4}\/\d{2}\/\d{2})\s+(\d{2}:\d{2}:\d{2})\s+.*?: You have entered (.+?)\.?$/i;
+    const LEVEL_REGEX = /^(\d{4}\/\d{2}\/\d{2})\s+(\d{2}:\d{2}:\d{2})\s+.*?: (.+?)(?:\s*\((.+?)\))?\s+is now level\s+(\d+)$/i;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -197,18 +253,37 @@
       buffer = lines.pop();
 
       for (const line of lines) {
-        const match = line.trim().match(LINE_REGEX);
-        if (match) {
-          const dateStr = match[1].replace(/\//g, '-');
-          const timeStr = match[2];
+        const trimmed = line.trim();
+        
+        const zoneMatch = trimmed.match(ZONE_REGEX);
+        if (zoneMatch) {
+          const dateStr = zoneMatch[1].replace(/\//g, '-');
+          const timeStr = zoneMatch[2];
           const timestamp = new Date(`${dateStr}T${timeStr}`);
-          parsedEntries.push({ dateStr, timeStr, timestamp, zone: match[3] });
+          parsedEntries.push({ type: 'zone', dateStr, timeStr, timestamp, zone: zoneMatch[3] });
+          continue;
+        }
+
+        const levelMatch = trimmed.match(LEVEL_REGEX);
+        if (levelMatch) {
+          const dateStr = levelMatch[1].replace(/\//g, '-');
+          const timeStr = levelMatch[2];
+          const timestamp = new Date(`${dateStr}T${timeStr}`);
+          parsedEntries.push({ 
+            type: 'level', 
+            dateStr, 
+            timeStr, 
+            timestamp, 
+            charName: levelMatch[3], 
+            level: parseInt(levelMatch[5], 10) 
+          });
         }
       }
     }
 
     progressBar.style.display = 'none';
-    if (!parsedEntries.length) {
+    const zoneEntries = parsedEntries.filter(e => e.type === 'zone');
+    if (!zoneEntries.length) {
       alert("No 'You have entered <Zone>' entries found in this file.");
       return;
     }
@@ -218,7 +293,8 @@
   }
 
   function populateDates() {
-    const dates = [...new Set(parsedEntries.map(e => e.dateStr))];
+    const zoneEntries = parsedEntries.filter(e => e.type === 'zone');
+    const dates = [...new Set(zoneEntries.map(e => e.dateStr))];
     dateSelect.innerHTML = dates.map(d => `<option value="${d}">${d}</option>`).join('') + '<option value="all">All Dates</option>';
     dateSelect.value = dates[dates.length - 1];
     recalculate();
@@ -228,12 +304,13 @@
   runSelect.addEventListener('change', displayRun);
 
   function recalculate() {
-    if (!parsedEntries.length) return;
+    const zoneEntries = parsedEntries.filter(e => e.type === 'zone');
+    if (!zoneEntries.length) return;
     
     const selectedDate = dateSelect.value;
     const filtered = selectedDate === 'all' 
-      ? parsedEntries 
-      : parsedEntries.filter(e => e.dateStr === selectedDate);
+      ? zoneEntries 
+      : zoneEntries.filter(e => e.dateStr === selectedDate);
 
     const gapMs = parseInt(gapInput.value, 10) * 60 * 1000;
     currentRuns = [];
@@ -257,7 +334,12 @@
     }).join('') + '<option value="all">All Runs Combined</option>';
 
     runSelect.value = "0";
-    displayRun();
+    
+    if (viewMode.value === 'campaign') {
+      displayCampaignSplits();
+    } else {
+      displayRun();
+    }
   }
 
   function categorizeZone(zoneName) {
@@ -276,7 +358,6 @@
     let html = '';
     let prevTime = null;
 
-    // Per-zone time tracking structures
     const zoneTotals = {};
     const categoryTotals = { hideout: 0, map: 0, town: 0 };
     let totalTrackedSeconds = 0;
@@ -287,7 +368,6 @@
       const isLong = deltaMs && deltaMs > thresholdMs;
       const deltaStr = deltaMs ? formatDelta(Math.floor(deltaMs / 1000)) : '--';
 
-      // Accumulate time spent in previous zone
       if (prevTime && i > 0) {
         const prevEntry = run[i - 1];
         const durationSec = Math.floor(deltaMs / 1000);
@@ -312,21 +392,18 @@
     }
 
     resultsBody.innerHTML = html;
-
-    // Render Zone & Category Breakdown
     renderAnalytics(categoryTotals, zoneTotals, totalTrackedSeconds, run);
   }
 
   function renderAnalytics(categoryTotals, zoneTotals, totalSec, run) {
-    const total = totalSec || 1; // Prevent div by 0
+    const total = totalSec || 1;
     const hideoutPct = ((categoryTotals.hideout / total) * 100).toFixed(1);
     const mapPct = ((categoryTotals.map / total) * 100).toFixed(1);
     const townPct = ((categoryTotals.town / total) * 100).toFixed(1);
 
-    // Sort zones by duration descending
     const sortedZones = Object.entries(zoneTotals)
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 5); // Top 5 zones
+      .slice(0, 5);
 
     const spanMs = run[run.length - 1].timestamp - run[0].timestamp;
 
@@ -355,6 +432,89 @@
     `;
   }
 
+  // Campaign Split Analysis
+  function displayCampaignSplits() {
+    let currentActIdx = 0;
+    let currentLevel = 1;
+    const splits = [];
+    let campaignStart = null;
+
+    for (const entry of parsedEntries) {
+      if (entry.type === 'level') {
+        currentLevel = entry.level;
+        continue;
+      }
+
+      if (entry.type === 'zone' && currentActIdx < ACT_TRIGGERS.length) {
+        const target = ACT_TRIGGERS[currentActIdx];
+
+        if (entry.zone.toLowerCase().includes(target.zone.toLowerCase())) {
+          if (!campaignStart) campaignStart = entry.timestamp;
+
+          const prevSplit = splits[splits.length - 1];
+          const splitSec = prevSplit 
+            ? Math.floor((entry.timestamp - prevSplit.timestamp) / 1000)
+            : 0;
+          const totalSec = Math.floor((entry.timestamp - campaignStart) / 1000);
+
+          splits.push({
+            act: target.act,
+            zone: entry.zone,
+            timestamp: entry.timestamp,
+            dateStr: entry.dateStr,
+            timeStr: entry.timeStr,
+            level: currentLevel,
+            splitSec: splitSec,
+            totalSec: totalSec
+          });
+
+          currentActIdx++;
+        }
+      }
+    }
+
+    if (!splits.length) {
+      campaignContent.innerHTML = `<p class="empty-msg">No sequential campaign Act transitions found in this log.</p>`;
+      return;
+    }
+
+    const totalTime = splits.length > 1 ? splits[splits.length - 1].totalSec : 0;
+
+    let html = `
+      <div class="campaign-title">Campaign Act Split Report</div>
+      <div class="campaign-subtitle">Total Campaign Duration: <strong>${formatDelta(totalTime)}</strong></div>
+      <table>
+        <thead>
+          <tr>
+            <th>Act / Stage</th>
+            <th>Character Level</th>
+            <th>Act Split</th>
+            <th>Total Elapsed</th>
+            <th>Entry Timestamp</th>
+          </tr>
+        </thead>
+        <tbody>
+    `;
+
+    splits.forEach((s, i) => {
+      const splitFormatted = i === 0 ? '--' : formatDelta(s.splitSec);
+      const label = s.act === "Maps" ? "Endgame Maps" : `Act ${s.act}`;
+
+      html += `
+        <tr>
+          <td><strong>${label}</strong></td>
+          <td>Level ${s.level}</td>
+          <td>${splitFormatted}</td>
+          <td>${formatDelta(s.totalSec)}</td>
+          <td>${s.dateStr} ${s.timeStr}</td>
+        </tr>
+      `;
+    });
+
+    html += `</tbody></table>`;
+    campaignContent.innerHTML = html;
+  }
+
   function formatDelta(totalSeconds) {
     const hours = Math.floor(totalSeconds / 3600);
     const minutes = Math.floor((totalSeconds % 3600) / 60);
@@ -365,7 +525,16 @@
     return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
   }
 
+  // Export handling
   csvBtn.addEventListener('click', () => {
+    if (viewMode.value === 'campaign') {
+      exportCampaignCSV();
+    } else {
+      exportStandardCSV();
+    }
+  });
+
+  function exportStandardCSV() {
     const runIdx = runSelect.value;
     const run = runIdx === 'all' ? currentRuns.flat() : currentRuns[parseInt(runIdx, 10)];
     if (!run || !run.length) return;
@@ -384,12 +553,59 @@
       prevTime = entry.timestamp;
     });
 
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    downloadBlob(csv, `poe_session_${dateSelect.value}.csv`);
+  }
+
+  function exportCampaignCSV() {
+    let currentActIdx = 0;
+    let currentLevel = 1;
+    const splits = [];
+    let campaignStart = null;
+
+    for (const entry of parsedEntries) {
+      if (entry.type === 'level') {
+        currentLevel = entry.level;
+        continue;
+      }
+
+      if (entry.type === 'zone' && currentActIdx < ACT_TRIGGERS.length) {
+        const target = ACT_TRIGGERS[currentActIdx];
+        if (entry.zone.toLowerCase().includes(target.zone.toLowerCase())) {
+          if (!campaignStart) campaignStart = entry.timestamp;
+          const prevSplit = splits[splits.length - 1];
+          const splitSec = prevSplit ? Math.floor((entry.timestamp - prevSplit.timestamp) / 1000) : 0;
+          const totalSec = Math.floor((entry.timestamp - campaignStart) / 1000);
+
+          splits.push({
+            act: target.act,
+            level: currentLevel,
+            splitSec,
+            totalSec,
+            dateStr: entry.dateStr,
+            timeStr: entry.timeStr
+          });
+          currentActIdx++;
+        }
+      }
+    }
+
+    if (!splits.length) return;
+
+    let csv = "act,level,split_seconds,split_formatted,total_seconds,total_formatted,timestamp\n";
+    splits.forEach(s => {
+      csv += `"${s.act}",${s.level},${s.splitSec},"${formatDelta(s.splitSec)}",${s.totalSec},"${formatDelta(s.totalSec)}","${s.dateStr} ${s.timeStr}"\n`;
+    });
+
+    downloadBlob(csv, `poe_campaign_splits.csv`);
+  }
+
+  function downloadBlob(content, filename) {
+    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `poe_time_tracker_${dateSelect.value}.csv`;
+    link.download = filename;
     link.click();
-  });
+  }
 </script>
 </body>
 </html>
