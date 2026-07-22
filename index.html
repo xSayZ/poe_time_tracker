@@ -3,145 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Path of Exile Time Tracker v0.0.6</title>
-  <style>
-    @font-face {
-      font-family: 'FontinRegular';
-      src: local('Fontin Regular'), local('Fontin-Regular'), local('Fontin');
-    }
-
-    :root {
-      --bg: #0f1115;
-      --card-bg: #181a20;
-      --border: #2a2e39;
-      --accent: #5afbbb;
-      --accent-hover: #82fcd0;
-      --text: #e2e8f0;
-      --text-muted: #94a3b8;
-      --danger: #ef4444;
-      --danger-bg: rgba(239, 68, 68, 0.15);
-      --success: #22c55e;
-    }
-
-    * { 
-      box-sizing: border-box; 
-      margin: 0; 
-      padding: 0; 
-      font-family: 'FontinRegular', 'Fontin', system-ui, -apple-system, sans-serif; 
-    }
-    
-    body { background-color: var(--bg); color: var(--text); padding: 2rem 1rem; display: flex; justify-content: center; }
-    .container { max-width: 900px; width: 100%; display: flex; flex-direction: column; gap: 1.5rem; }
-
-    header { text-align: center; border-bottom: 1px solid var(--border); padding-bottom: 1.5rem; }
-    h1 { color: var(--accent); font-size: 1.8rem; margin-bottom: 0.5rem; letter-spacing: 0.5px; }
-    .version-tag { font-size: 0.85rem; color: var(--text-muted); font-weight: normal; margin-left: 0.5rem; vertical-align: middle; }
-    p.subtitle { color: var(--text-muted); font-size: 0.95rem; }
-
-    .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; }
-    
-    .settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; }
-    .field { display: flex; flex-direction: column; gap: 0.35rem; }
-    label { font-size: 0.85rem; color: var(--text-muted); font-weight: 600; }
-    input[type="number"] { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 0.5rem; border-radius: 4px; outline: none; }
-    input[type="number"]:focus { border-color: var(--accent); }
-
-    .dropzone { border: 2px dashed var(--border); border-radius: 8px; padding: 2.5rem 1rem; text-align: center; cursor: pointer; transition: all 0.2s ease; background: rgba(255,255,255,0.01); }
-    .dropzone:hover, .dropzone.dragover { border-color: var(--accent); background: rgba(90, 251, 187, 0.05); }
-    .dropzone input { display: none; }
-    .dropzone p { color: var(--text-muted); font-size: 0.95rem; }
-    .dropzone strong { color: var(--accent); }
-
-    /* Client File Path Guide Notes */
-    .location-notes {
-      margin-top: -0.5rem;
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 1.25rem;
-    }
-    .location-notes h3 {
-      font-size: 0.95rem;
-      color: var(--accent);
-      margin-bottom: 0.75rem;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-    .path-list {
-      display: flex;
-      flex-direction: column;
-      gap: 0.75rem;
-    }
-    .path-item {
-      display: flex;
-      flex-direction: column;
-      gap: 0.3rem;
-    }
-    .path-item label {
-      font-size: 0.8rem;
-      color: var(--text-muted);
-    }
-    .code-copy {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      padding: 0.5rem 0.75rem;
-      font-family: monospace;
-      font-size: 0.8rem;
-      color: var(--text);
-      cursor: pointer;
-      user-select: all;
-      transition: all 0.2s ease;
-      word-break: break-all;
-    }
-    .code-copy:hover {
-      border-color: var(--accent);
-    }
-    .code-copy .copy-btn-text {
-      font-family: 'FontinRegular', 'Fontin', system-ui, -apple-system, sans-serif;
-      font-size: 0.75rem;
-      font-weight: 600;
-      color: var(--accent);
-      margin-left: 0.75rem;
-      white-space: nowrap;
-      flex-shrink: 0;
-    }
-
-    .progress-bar { width: 100%; background: var(--bg); border-radius: 4px; overflow: hidden; height: 8px; margin-top: 1rem; display: none; }
-    .progress-fill { height: 100%; background: var(--accent); width: 0%; transition: width 0.1s ease; }
-
-    .selectors { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
-    select { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 0.5rem 0.75rem; border-radius: 4px; outline: none; min-width: 160px; }
-    
-    .btn { background: var(--accent); color: #0f1115; border: none; padding: 0.5rem 1rem; font-weight: 600; border-radius: 4px; cursor: pointer; transition: background 0.2s ease; }
-    .btn:hover { background: var(--accent-hover); }
-    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-    table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.9rem; }
-    th, td { text-align: left; padding: 0.65rem 0.75rem; border-bottom: 1px solid var(--border); }
-    th { color: var(--text-muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; }
-    tr.long-stop { background-color: var(--danger-bg); }
-    
-    /* Badges */
-    .badge-danger { color: var(--danger); font-weight: bold; font-size: 0.7rem; padding: 0.1rem 0.35rem; border: 1px solid var(--danger); border-radius: 3px; margin-left: 0.5rem; text-transform: uppercase; }
-    .badge-town { color: var(--accent); font-weight: bold; font-size: 0.7rem; padding: 0.1rem 0.35rem; border: 1px solid var(--accent); border-radius: 3px; margin-left: 0.5rem; opacity: 0.85; text-transform: uppercase; }
-
-    .summary-bar { font-size: 0.9rem; color: var(--text-muted); display: flex; gap: 1.5rem; margin-bottom: 1rem; }
-    .summary-bar strong { color: var(--text); }
-    
-    .campaign-title { color: var(--accent); font-size: 1.2rem; margin-bottom: 0.5rem; }
-    .campaign-subtitle { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem; }
-    .empty-msg { color: var(--text-muted); font-size: 0.95rem; padding: 1rem 0; text-align: center; }
-  </style>
+  <title>Path of Exile Time Tracker v0.0.7</title>
+  <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
 
 <div class="container">
   <header>
-    <h1>Path of Exile Time Tracker <span class="version-tag">v0.0.6</span></h1>
+    <h1>Path of Exile Time Tracker <span class="version-tag">v0.0.7</span></h1>
     <p class="subtitle">Drag & drop your Client.txt file to analyze zone-entry progression and campaign splits.</p>
   </header>
 
@@ -170,21 +39,21 @@
     <div class="path-list">
       <div class="path-item">
         <label>Windows (Standalone / Steam)</label>
-        <div class="code-copy" onclick="copyPath(this, 'C:\\Program Files (x86)\\Grinding Gear Games\\Path of Exile\\logs\\Client.txt')">
+        <div class="code-copy" data-path="C:\Program Files (x86)\Grinding Gear Games\Path of Exile\logs\Client.txt">
           <span>C:\Program Files (x86)\Grinding Gear Games\Path of Exile\logs\Client.txt</span>
           <span class="copy-btn-text">Click to copy</span>
         </div>
       </div>
       <div class="path-item">
         <label>Linux (Steam Proton)</label>
-        <div class="code-copy" onclick="copyPath(this, '~/.local/share/Steam/steamapps/compatdata/238960/pfx/drive_c/Program Files (x86)/Steam/steamapps/common/Path of Exile/logs/Client.txt')">
+        <div class="code-copy" data-path="~/.local/share/Steam/steamapps/compatdata/238960/pfx/drive_c/Program Files (x86)/Steam/steamapps/common/Path of Exile/logs/Client.txt">
           <span>~/.local/share/Steam/steamapps/compatdata/238960/pfx/drive_c/Program Files (x86)/Steam/steamapps/common/Path of Exile/logs/Client.txt</span>
           <span class="copy-btn-text">Click to copy</span>
         </div>
       </div>
       <div class="path-item">
         <label>macOS</label>
-        <div class="code-copy" onclick="copyPath(this, '~/Library/Application Support/Path of Exile/logs/Client.txt')">
+        <div class="code-copy" data-path="~/Library/Application Support/Path of Exile/logs/Client.txt">
           <span>~/Library/Application Support/Path of Exile/logs/Client.txt</span>
           <span class="copy-btn-text">Click to copy</span>
         </div>
@@ -218,16 +87,38 @@
     <!-- Standard Session View Container -->
     <div id="standardView">
       <div class="summary-bar" id="summaryBar"></div>
+      
+      <!-- Table Search & Pagination Controls -->
+      <div class="table-controls">
+        <input type="text" id="searchInput" class="search-input" placeholder="Search zone name (e.g., Blood Aqueduct, Hideout)...">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <label for="pageSizeSelect" style="font-size: 0.8rem; color: var(--text-muted);">Rows per page:</label>
+          <select id="pageSizeSelect" style="min-width: 80px; padding: 0.35rem 0.5rem;">
+            <option value="25">25</option>
+            <option value="50" selected>50</option>
+            <option value="100">100</option>
+            <option value="250">250</option>
+            <option value="all">All</option>
+          </select>
+        </div>
+      </div>
+
       <table id="resultsTable">
         <thead>
           <tr>
-            <th>Timestamp</th>
-            <th>Delta</th>
-            <th>Zone</th>
+            <th class="sortable" id="thTimestamp">Timestamp <span class="sort-icon" id="iconTimestamp">▲</span></th>
+            <th class="sortable" id="thDelta">Delta <span class="sort-icon" id="iconDelta"></span></th>
+            <th class="sortable" id="thZone">Zone <span class="sort-icon" id="iconZone"></span></th>
           </tr>
         </thead>
         <tbody></tbody>
       </table>
+
+      <div class="pagination" id="paginationBar">
+        <button class="pagination-btn" id="prevPageBtn">Previous</button>
+        <span class="page-info" id="pageInfo">Page 1 of 1</span>
+        <button class="pagination-btn" id="nextPageBtn">Next</button>
+      </div>
     </div>
 
     <!-- Campaign Act Splits View Container -->
@@ -237,517 +128,6 @@
   </div>
 </div>
 
-<script>
-  // Copy to clipboard helper
-  function copyPath(element, pathText) {
-    navigator.clipboard.writeText(pathText).then(() => {
-      const label = element.querySelector('.copy-btn-text');
-      const originalText = label.textContent;
-      label.textContent = 'Copied!';
-      label.style.color = 'var(--success)';
-      setTimeout(() => {
-        label.textContent = originalText;
-        label.style.color = 'var(--accent)';
-      }, 1800);
-    }).catch(err => {
-      console.error('Copy failed:', err);
-    });
-  }
-
-  // Preferences persistence
-  const gapInput = document.getElementById('gap');
-  const thresholdInput = document.getElementById('threshold');
-  
-  gapInput.value = localStorage.getItem('poe_gap') || 30;
-  thresholdInput.value = localStorage.getItem('poe_threshold') || 6;
-
-  gapInput.addEventListener('change', () => {
-    localStorage.setItem('poe_gap', gapInput.value);
-    recalculate();
-  });
-  thresholdInput.addEventListener('change', () => {
-    localStorage.setItem('poe_threshold', thresholdInput.value);
-    recalculate();
-  });
-
-  // State
-  let parsedEntries = [];
-  let currentRuns = [];
-
-  // DOM Elements
-  const dropzone = document.getElementById('dropzone');
-  const locationNotes = document.getElementById('locationNotes');
-  const fileInput = document.getElementById('fileInput');
-  const progressBar = document.getElementById('progressBar');
-  const progressFill = document.getElementById('progressFill');
-  const dashboard = document.getElementById('dashboard');
-  const viewMode = document.getElementById('viewMode');
-  const dateSelect = document.getElementById('dateSelect');
-  const runSelect = document.getElementById('runSelect');
-  const resultsBody = document.querySelector('#resultsTable tbody');
-  const summaryBar = document.getElementById('summaryBar');
-  const standardView = document.getElementById('standardView');
-  const campaignView = document.getElementById('campaignView');
-  const campaignContent = document.getElementById('campaignContent');
-  const csvBtn = document.getElementById('csvBtn');
-
-  // Town keywords for zone classification
-  const TOWN_KEYWORDS = [
-    'encampment', 'watch', 'highgate', 'shores', 'bridge', 
-    'kingsmarch', 'rogue harbour', 'aspirants\' plaza', 'town'
-  ];
-
-  // Act entry triggers in strict chronological campaign order
-  const ACT_TRIGGERS = [
-    { act: 1,  zone: "Lioneye's Watch" },
-    { act: 2,  zone: "The Forest Encampment" },
-    { act: 3,  zone: "The Sarn Encampment" },
-    { act: 4,  zone: "Highgate" },
-    { act: 5,  zone: "Overseer's Tower" },
-    { act: 6,  zone: "Lioneye's Watch" },
-    { act: 7,  zone: "The Bridge Encampment" },
-    { act: 8,  zone: "The Sarn Encampment" },
-    { act: 9,  zone: "Highgate" },
-    { act: 10, zone: "Oriath Docks" },
-    { act: "Maps", zone: "Karui Shores" }
-  ];
-
-  // File selection
-  dropzone.addEventListener('click', () => fileInput.click());
-  dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
-  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
-  dropzone.addEventListener('drop', (e) => {
-    e.preventDefault();
-    dropzone.classList.remove('dragover');
-    if (e.dataTransfer.files.length) processFile(e.dataTransfer.files[0]);
-  });
-  fileInput.addEventListener('change', (e) => {
-    if (e.target.files.length) processFile(e.target.files[0]);
-  });
-
-  // View Mode Switcher
-  viewMode.addEventListener('change', () => {
-    if (viewMode.value === 'campaign') {
-      standardView.style.display = 'none';
-      campaignView.style.display = 'block';
-      displayCampaignSplits();
-    } else {
-      standardView.style.display = 'block';
-      campaignView.style.display = 'none';
-      displayRun();
-    }
-  });
-
-  // Stream parsing for zone entries and level-ups
-  async function processFile(file) {
-    progressBar.style.display = 'block';
-    progressFill.style.width = '0%';
-    parsedEntries = [];
-
-    const stream = file.stream();
-    const reader = stream.getReader();
-    const decoder = new TextDecoder('utf-8');
-    let buffer = '';
-    let bytesRead = 0;
-    const totalBytes = file.size;
-
-    const ZONE_REGEX = /^(\d{4}\/\d{2}\/\d{2})\s+(\d{2}:\d{2}:\d{2})\s+.*?: You have entered (.+?)\.?$/i;
-    const LEVEL_REGEX = /^(\d{4}\/\d{2}\/\d{2})\s+(\d{2}:\d{2}:\d{2})\s+.*?: (.+?)(?:\s*\((.+?)\))?\s+is now level\s+(\d+)$/i;
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      bytesRead += value.byteLength;
-      progressFill.style.width = Math.round((bytesRead / totalBytes) * 100) + '%';
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop();
-
-      for (const line of lines) {
-        const trimmed = line.trim();
-        
-        const zoneMatch = trimmed.match(ZONE_REGEX);
-        if (zoneMatch) {
-          const dateStr = zoneMatch[1].replace(/\//g, '-');
-          const timeStr = zoneMatch[2];
-          const timestamp = new Date(`${dateStr}T${timeStr}`);
-          parsedEntries.push({ type: 'zone', dateStr, timeStr, timestamp, zone: zoneMatch[3] });
-          continue;
-        }
-
-        const levelMatch = trimmed.match(LEVEL_REGEX);
-        if (levelMatch) {
-          const dateStr = levelMatch[1].replace(/\//g, '-');
-          const timeStr = levelMatch[2];
-          const timestamp = new Date(`${dateStr}T${timeStr}`);
-          parsedEntries.push({ 
-            type: 'level', 
-            dateStr, 
-            timeStr, 
-            timestamp, 
-            charName: levelMatch[3], 
-            level: parseInt(levelMatch[5], 10) 
-          });
-        }
-      }
-    }
-
-    progressBar.style.display = 'none';
-    if (!parsedEntries.length) {
-      alert("No log entries found in this file.");
-      return;
-    }
-
-    // Hide the path notes section after file is successfully loaded
-    if (locationNotes) {
-      locationNotes.style.display = 'none';
-    }
-
-    dashboard.style.display = 'block';
-    populateDates();
-  }
-
-  function populateDates() {
-    const dates = [...new Set(parsedEntries.map(e => e.dateStr))];
-    dateSelect.innerHTML = dates.map(d => `<option value="${d}">${d}</option>`).join('') + '<option value="all">All Dates</option>';
-    dateSelect.value = dates[dates.length - 1];
-    recalculate();
-  }
-
-  dateSelect.addEventListener('change', recalculate);
-  runSelect.addEventListener('change', () => {
-    if (viewMode.value === 'campaign') {
-      displayCampaignSplits();
-    } else {
-      displayRun();
-    }
-  });
-
-  function recalculate() {
-    if (!parsedEntries.length) return;
-    
-    const selectedDate = dateSelect.value;
-    const filtered = selectedDate === 'all' 
-      ? parsedEntries 
-      : parsedEntries.filter(e => e.dateStr === selectedDate);
-
-    filtered.sort((a, b) => a.timestamp - b.timestamp);
-
-    const gapMs = parseInt(gapInput.value, 10) * 60 * 1000;
-    currentRuns = [];
-
-    if (filtered.length) {
-      let currentRun = [filtered[0]];
-      for (let i = 1; i < filtered.length; i++) {
-        if (filtered[i].timestamp - filtered[i - 1].timestamp > gapMs) {
-          currentRuns.push(currentRun);
-          currentRun = [];
-        }
-        currentRun.push(filtered[i]);
-      }
-      if (currentRun.length) currentRuns.push(currentRun);
-    }
-
-    runSelect.innerHTML = currentRuns.map((r, i) => {
-      const start = r[0].timeStr;
-      const end = r[r.length - 1].timeStr;
-      const zoneCount = r.filter(e => e.type === 'zone').length;
-      return `<option value="${i}">Run ${i + 1} (${start} - ${end}) [${zoneCount} zones]</option>`;
-    }).join('') + '<option value="all">All Runs Combined</option>';
-
-    runSelect.value = "0";
-
-    if (viewMode.value === 'campaign') {
-      displayCampaignSplits();
-    } else {
-      displayRun();
-    }
-  }
-
-  function categorizeZone(zoneName) {
-    const lower = zoneName.toLowerCase();
-    if (lower.includes('hideout')) return 'hideout';
-    if (TOWN_KEYWORDS.some(kw => lower.includes(kw))) return 'town';
-    return 'map';
-  }
-
-  function displayRun() {
-    const runIdx = runSelect.value;
-    const run = runIdx === 'all' ? currentRuns.flat() : currentRuns[parseInt(runIdx, 10)];
-    if (!run || !run.length) { resultsBody.innerHTML = ''; return; }
-
-    const zoneEntries = run.filter(e => e.type === 'zone');
-    if (!zoneEntries.length) { resultsBody.innerHTML = ''; return; }
-
-    const thresholdMs = parseInt(thresholdInput.value, 10) * 60 * 1000;
-    let html = '';
-    let prevTime = null;
-
-    const zoneTotals = {};
-    const categoryTotals = { hideout: 0, map: 0, town: 0 };
-    let totalTrackedSeconds = 0;
-
-    for (let i = 0; i < zoneEntries.length; i++) {
-      const entry = zoneEntries[i];
-      const deltaMs = prevTime ? (entry.timestamp - prevTime) : null;
-      const isLong = deltaMs && deltaMs > thresholdMs;
-      const deltaStr = deltaMs ? formatDelta(Math.floor(deltaMs / 1000)) : '--';
-      const cat = categorizeZone(entry.zone);
-      const isTown = cat === 'town';
-
-      if (prevTime && i > 0) {
-        const prevEntry = zoneEntries[i - 1];
-        const durationSec = Math.floor(deltaMs / 1000);
-        
-        zoneTotals[prevEntry.zone] = (zoneTotals[prevEntry.zone] || 0) + durationSec;
-        const prevCat = categorizeZone(prevEntry.zone);
-        categoryTotals[prevCat] += durationSec;
-        totalTrackedSeconds += durationSec;
-      }
-
-      html += `
-        <tr class="${isLong ? 'long-stop' : ''}">
-          <td>${entry.dateStr} ${entry.timeStr}</td>
-          <td>${deltaStr}</td>
-          <td>
-            ${entry.zone}
-            ${isTown ? '<span class="badge-town">TOWN</span>' : ''}
-            ${isLong ? '<span class="badge-danger">LONG STOP</span>' : ''}
-          </td>
-        </tr>
-      `;
-      prevTime = entry.timestamp;
-    }
-
-    resultsBody.innerHTML = html;
-    renderAnalytics(categoryTotals, zoneTotals, totalTrackedSeconds, zoneEntries);
-  }
-
-  function renderAnalytics(categoryTotals, zoneTotals, totalSec, zoneEntries) {
-    const total = totalSec || 1;
-    const hideoutPct = ((categoryTotals.hideout / total) * 100).toFixed(1);
-    const mapPct = ((categoryTotals.map / total) * 100).toFixed(1);
-    const townPct = ((categoryTotals.town / total) * 100).toFixed(1);
-
-    const sortedZones = Object.entries(zoneTotals)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5);
-
-    const spanMs = zoneEntries[zoneEntries.length - 1].timestamp - zoneEntries[0].timestamp;
-
-    summaryBar.innerHTML = `
-      <div style="width: 100%; display: flex; flex-direction: column; gap: 0.75rem;">
-        <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem; background: var(--bg); padding: 0.75rem; border-radius: 6px;">
-          <span>Maps/Zones: <strong>${formatDelta(categoryTotals.map)} (${mapPct}%)</strong></span>
-          <span>Hideout: <strong>${formatDelta(categoryTotals.hideout)} (${hideoutPct}%)</strong></span>
-          <span>Town/Hubs: <strong>${formatDelta(categoryTotals.town)} (${townPct}%)</strong></span>
-        </div>
-        
-        <div style="font-size: 0.85rem;">
-          <strong style="color: var(--accent);">Top Zones by Time:</strong>
-          <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 0.25rem;">
-            ${sortedZones.map(([zone, sec]) => `
-              <span>${zone}: <strong>${formatDelta(sec)}</strong> (${((sec / total) * 100).toFixed(0)}%)</span>
-            `).join(' • ')}
-          </div>
-        </div>
-
-        <div style="display: flex; justify-content: space-between; border-top: 1px solid var(--border); padding-top: 0.5rem; font-size: 0.85rem;">
-          <span>Entries: <strong>${zoneEntries.length}</strong></span>
-          <span>Run Duration: <strong>${formatDelta(Math.floor(spanMs / 1000))}</strong></span>
-        </div>
-      </div>
-    `;
-  }
-
-  // Campaign Split Analysis filtered per selected run
-  function displayCampaignSplits() {
-    const runIdx = runSelect.value;
-    const run = runIdx === 'all' ? currentRuns.flat() : currentRuns[parseInt(runIdx, 10)];
-    if (!run || !run.length) {
-      campaignContent.innerHTML = `<p class="empty-msg">No entries found for this run selection.</p>`;
-      return;
-    }
-
-    let currentActIdx = 0;
-    let currentLevel = 1;
-    const splits = [];
-    let campaignStart = null;
-
-    for (const entry of run) {
-      if (entry.type === 'level') {
-        currentLevel = entry.level;
-        continue;
-      }
-
-      if (entry.type === 'zone' && currentActIdx < ACT_TRIGGERS.length) {
-        const target = ACT_TRIGGERS[currentActIdx];
-
-        if (entry.zone.toLowerCase().includes(target.zone.toLowerCase())) {
-          if (!campaignStart) campaignStart = entry.timestamp;
-
-          const prevSplit = splits[splits.length - 1];
-          const splitSec = prevSplit 
-            ? Math.floor((entry.timestamp - prevSplit.timestamp) / 1000)
-            : 0;
-          const totalSec = Math.floor((entry.timestamp - campaignStart) / 1000);
-
-          splits.push({
-            act: target.act,
-            zone: entry.zone,
-            timestamp: entry.timestamp,
-            dateStr: entry.dateStr,
-            timeStr: entry.timeStr,
-            level: currentLevel,
-            splitSec: splitSec,
-            totalSec: totalSec
-          });
-
-          currentActIdx++;
-        }
-      }
-    }
-
-    if (!splits.length) {
-      campaignContent.innerHTML = `<p class="empty-msg">No sequential campaign Act transitions found in this selected run.</p>`;
-      return;
-    }
-
-    const totalTime = splits.length > 1 ? splits[splits.length - 1].totalSec : 0;
-
-    let html = `
-      <div class="campaign-title">Campaign Act Split Report</div>
-      <div class="campaign-subtitle">Total Campaign Duration: <strong>${formatDelta(totalTime)}</strong></div>
-      <table>
-        <thead>
-          <tr>
-            <th>Act / Stage</th>
-            <th>Character Level</th>
-            <th>Act Split</th>
-            <th>Total Elapsed</th>
-            <th>Entry Timestamp</th>
-          </tr>
-        </thead>
-        <tbody>
-    `;
-
-    splits.forEach((s, i) => {
-      const splitFormatted = i === 0 ? '--' : formatDelta(s.splitSec);
-      const label = s.act === "Maps" ? "Endgame Maps" : `Act ${s.act}`;
-
-      html += `
-        <tr>
-          <td><strong>${label}</strong></td>
-          <td>Level ${s.level}</td>
-          <td>${splitFormatted}</td>
-          <td>${formatDelta(s.totalSec)}</td>
-          <td>${s.dateStr} ${s.timeStr}</td>
-        </tr>
-      `;
-    });
-
-    html += `</tbody></table>`;
-    campaignContent.innerHTML = html;
-  }
-
-  function formatDelta(totalSeconds) {
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = totalSeconds % 60;
-    if (hours > 0) {
-      return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-    }
-    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-  }
-
-  // Export handling
-  csvBtn.addEventListener('click', () => {
-    if (viewMode.value === 'campaign') {
-      exportCampaignCSV();
-    } else {
-      exportStandardCSV();
-    }
-  });
-
-  function exportStandardCSV() {
-    const runIdx = runSelect.value;
-    const run = runIdx === 'all' ? currentRuns.flat() : currentRuns[parseInt(runIdx, 10)];
-    if (!run || !run.length) return;
-
-    const zoneEntries = run.filter(e => e.type === 'zone');
-    const thresholdMs = parseInt(thresholdInput.value, 10) * 60 * 1000;
-    let csv = "timestamp,delta_seconds,delta_formatted,long_stop,zone,category\n";
-    let prevTime = null;
-
-    zoneEntries.forEach(entry => {
-      const deltaMs = prevTime ? (entry.timestamp - prevTime) : 0;
-      const deltaSec = Math.floor(deltaMs / 1000);
-      const isLong = prevTime && deltaMs > thresholdMs;
-      const cat = categorizeZone(entry.zone);
-
-      csv += `"${entry.dateStr} ${entry.timeStr}",${deltaSec},"${formatDelta(deltaSec)}","${isLong ? 'YES' : ''}","${entry.zone.replace(/"/g, '""')}","${cat}"\n`;
-      prevTime = entry.timestamp;
-    });
-
-    downloadBlob(csv, `poe_session_${dateSelect.value}.csv`);
-  }
-
-  function exportCampaignCSV() {
-    const runIdx = runSelect.value;
-    const run = runIdx === 'all' ? currentRuns.flat() : currentRuns[parseInt(runIdx, 10)];
-    if (!run || !run.length) return;
-
-    let currentActIdx = 0;
-    let currentLevel = 1;
-    const splits = [];
-    let campaignStart = null;
-
-    for (const entry of run) {
-      if (entry.type === 'level') {
-        currentLevel = entry.level;
-        continue;
-      }
-
-      if (entry.type === 'zone' && currentActIdx < ACT_TRIGGERS.length) {
-        const target = ACT_TRIGGERS[currentActIdx];
-        if (entry.zone.toLowerCase().includes(target.zone.toLowerCase())) {
-          if (!campaignStart) campaignStart = entry.timestamp;
-          const prevSplit = splits[splits.length - 1];
-          const splitSec = prevSplit ? Math.floor((entry.timestamp - prevSplit.timestamp) / 1000) : 0;
-          const totalSec = Math.floor((entry.timestamp - campaignStart) / 1000);
-
-          splits.push({
-            act: target.act,
-            level: currentLevel,
-            splitSec,
-            totalSec,
-            dateStr: entry.dateStr,
-            timeStr: entry.timeStr
-          });
-          currentActIdx++;
-        }
-      }
-    }
-
-    if (!splits.length) return;
-
-    let csv = "act,level,split_seconds,split_formatted,total_seconds,total_formatted,timestamp\n";
-    splits.forEach(s => {
-      csv += `"${s.act}",${s.level},${s.splitSec},"${formatDelta(s.splitSec)}",${s.totalSec},"${formatDelta(s.totalSec)}","${s.dateStr} ${s.timeStr}"\n`;
-    });
-
-    downloadBlob(csv, `poe_campaign_splits_${dateSelect.value}.csv`);
-  }
-
-  function downloadBlob(content, filename) {
-    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = filename;
-    link.click();
-  }
-</script>
+<script type="module" src="js/app.js"></script>
 </body>
 </html>
