@@ -40,21 +40,27 @@ const searchInput = document.getElementById('searchInput');
 const scrollSentinel = document.getElementById('scrollSentinel');
 const scrollLoader = document.getElementById('scrollLoader');
 const scrollStatus = document.getElementById('scrollStatus');
+const loadMoreBtn = document.getElementById('loadMoreBtn');
 const gapInput = document.getElementById('gap');
 const thresholdInput = document.getElementById('threshold');
 
 // --- Initialization & Local Storage ---
-gapInput.value = localStorage.getItem('poe_gap') || 30;
-thresholdInput.value = localStorage.getItem('poe_threshold') || 6;
+if (gapInput) gapInput.value = localStorage.getItem('poe_gap') || 30;
+if (thresholdInput) thresholdInput.value = localStorage.getItem('poe_threshold') || 6;
 
-gapInput.addEventListener('change', () => {
-  localStorage.setItem('poe_gap', gapInput.value);
-  recalculate();
-});
-thresholdInput.addEventListener('change', () => {
-  localStorage.setItem('poe_threshold', thresholdInput.value);
-  recalculate();
-});
+if (gapInput) {
+  gapInput.addEventListener('change', () => {
+    localStorage.setItem('poe_gap', gapInput.value);
+    recalculate();
+  });
+}
+
+if (thresholdInput) {
+  thresholdInput.addEventListener('change', () => {
+    localStorage.setItem('poe_threshold', thresholdInput.value);
+    recalculate();
+  });
+}
 
 // Event delegation for path copy clicks
 document.addEventListener('click', (e) => {
@@ -65,46 +71,64 @@ document.addEventListener('click', (e) => {
   }
 });
 
-// Drag & Drop Handlers (Checked e.target to prevent event loops)
-dropzone.addEventListener('click', (e) => {
-  if (e.target !== fileInput) fileInput.click();
-});
-dropzone.addEventListener('dragover', (e) => { 
-  e.preventDefault(); 
-  dropzone.classList.add('dragover'); 
-});
-dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
-dropzone.addEventListener('drop', (e) => {
-  e.preventDefault();
-  dropzone.classList.remove('dragover');
-  if (e.dataTransfer.files.length) handleFileSelect(e.dataTransfer.files[0]);
-});
-fileInput.addEventListener('change', (e) => {
-  if (e.target.files.length) handleFileSelect(e.target.files[0]);
-});
+// Drag & Drop Handlers
+if (dropzone) {
+  dropzone.addEventListener('click', (e) => {
+    if (e.target !== fileInput) fileInput.click();
+  });
+  dropzone.addEventListener('dragover', (e) => { 
+    e.preventDefault(); 
+    dropzone.classList.add('dragover'); 
+  });
+  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+  dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropzone.classList.remove('dragover');
+    if (e.dataTransfer.files.length) handleFileSelect(e.dataTransfer.files[0]);
+  });
+}
+
+if (fileInput) {
+  fileInput.addEventListener('change', (e) => {
+    if (e.target.files.length) handleFileSelect(e.target.files[0]);
+  });
+}
 
 // View mode switcher
-viewMode.addEventListener('change', () => {
-  if (viewMode.value === 'campaign') {
-    standardView.style.display = 'none';
-    campaignView.style.display = 'block';
-    displayCampaignSplits();
-  } else {
-    standardView.style.display = 'block';
-    campaignView.style.display = 'none';
-    displayRun();
-  }
-});
+if (viewMode) {
+  viewMode.addEventListener('change', () => {
+    if (viewMode.value === 'campaign') {
+      standardView.style.display = 'none';
+      campaignView.style.display = 'block';
+      displayCampaignSplits();
+    } else {
+      standardView.style.display = 'block';
+      campaignView.style.display = 'none';
+      displayRun();
+    }
+  });
+}
 
-// Table Filter & Sorting Handlers
-searchInput.addEventListener('input', (e) => {
-  currentSearchTerm = e.target.value;
-  renderStandardTable(true);
-});
+// Search Filtering
+if (searchInput) {
+  searchInput.addEventListener('input', (e) => {
+    currentSearchTerm = e.target.value;
+    renderStandardTable(true);
+  });
+}
 
-document.getElementById('thTimestamp').addEventListener('click', () => handleSort('timestamp'));
-document.getElementById('thDelta').addEventListener('click', () => handleSort('delta'));
-document.getElementById('thZone').addEventListener('click', () => handleSort('zone'));
+// Table Header Sorting Attachments
+const thTimestamp = document.getElementById('thTimestamp');
+const thDelta = document.getElementById('thDelta');
+const thZone = document.getElementById('thZone');
+
+if (thTimestamp) thTimestamp.addEventListener('click', () => handleSort('timestamp'));
+if (thDelta) thDelta.addEventListener('click', () => handleSort('delta'));
+if (thZone) thZone.addEventListener('click', () => handleSort('zone'));
+
+if (loadMoreBtn) {
+  loadMoreBtn.addEventListener('click', () => loadMoreRows());
+}
 
 function handleSort(column) {
   if (currentSortCol === column) {
@@ -118,14 +142,14 @@ function handleSort(column) {
 
 // File Processing
 async function handleFileSelect(file) {
-  progressBar.style.display = 'block';
-  progressFill.style.width = '0%';
+  if (progressBar) progressBar.style.display = 'block';
+  if (progressFill) progressFill.style.width = '0%';
 
   parsedEntries = await parseClientLogFile(file, (percent) => {
-    progressFill.style.width = percent + '%';
+    if (progressFill) progressFill.style.width = percent + '%';
   });
 
-  progressBar.style.display = 'none';
+  if (progressBar) progressBar.style.display = 'none';
 
   if (!parsedEntries.length) {
     alert("No log entries found in this file.");
@@ -133,49 +157,57 @@ async function handleFileSelect(file) {
   }
 
   if (locationNotes) locationNotes.style.display = 'none';
-  dashboard.style.display = 'block';
+  if (dashboard) dashboard.style.display = 'block';
+  
   populateDates();
+  initInfiniteScroll();
 }
 
 function populateDates() {
   const dates = [...new Set(parsedEntries.map(e => e.dateStr))];
-  dateSelect.innerHTML = dates.map(d => `<option value="${d}">${d}</option>`).join('') + '<option value="all">All Dates</option>';
-  dateSelect.value = dates[dates.length - 1];
+  if (dateSelect) {
+    dateSelect.innerHTML = dates.map(d => `<option value="${d}">${d}</option>`).join('') + '<option value="all">All Dates</option>';
+    dateSelect.value = dates[dates.length - 1];
+  }
   recalculate();
 }
 
-dateSelect.addEventListener('change', recalculate);
-runSelect.addEventListener('change', () => {
-  if (viewMode.value === 'campaign') {
-    displayCampaignSplits();
-  } else {
-    displayRun();
-  }
-});
+if (dateSelect) dateSelect.addEventListener('change', recalculate);
+if (runSelect) {
+  runSelect.addEventListener('change', () => {
+    if (viewMode.value === 'campaign') {
+      displayCampaignSplits();
+    } else {
+      displayRun();
+    }
+  });
+}
 
 function recalculate() {
   if (!parsedEntries.length) return;
   
-  const selectedDate = dateSelect.value;
+  const selectedDate = dateSelect ? dateSelect.value : 'all';
   const filtered = selectedDate === 'all' 
     ? parsedEntries 
     : parsedEntries.filter(e => e.dateStr === selectedDate);
 
   filtered.sort((a, b) => a.timestamp - b.timestamp);
 
-  const gapMinutes = parseInt(gapInput.value, 10);
+  const gapMinutes = parseInt(gapInput ? gapInput.value : 30, 10);
   currentRuns = groupEntriesIntoRuns(filtered, gapMinutes);
 
-  runSelect.innerHTML = currentRuns.map((r, i) => {
-    const start = r[0].timeStr;
-    const end = r[r.length - 1].timeStr;
-    const zoneCount = r.filter(e => e.type === 'zone').length;
-    return `<option value="${i}">Run ${i + 1} (${start} - ${end}) [${zoneCount} zones]</option>`;
-  }).join('') + '<option value="all">All Runs Combined</option>';
+  if (runSelect) {
+    runSelect.innerHTML = currentRuns.map((r, i) => {
+      const start = r[0].timeStr;
+      const end = r[r.length - 1].timeStr;
+      const zoneCount = r.filter(e => e.type === 'zone').length;
+      return `<option value="${i}">Run ${i + 1} (${start} - ${end}) [${zoneCount} zones]</option>`;
+    }).join('') + '<option value="all">All Runs Combined</option>';
 
-  runSelect.value = "0";
+    runSelect.value = "0";
+  }
 
-  if (viewMode.value === 'campaign') {
+  if (viewMode && viewMode.value === 'campaign') {
     displayCampaignSplits();
   } else {
     displayRun();
@@ -183,24 +215,25 @@ function recalculate() {
 }
 
 function displayRun() {
-  const runIdx = runSelect.value;
+  const runIdx = runSelect ? runSelect.value : "0";
   const run = runIdx === 'all' ? currentRuns.flat() : currentRuns[parseInt(runIdx, 10)];
+  
   if (!run || !run.length) { 
-    resultsBody.innerHTML = ''; 
-    summaryBar.innerHTML = '';
+    if (resultsBody) resultsBody.innerHTML = ''; 
+    if (summaryBar) summaryBar.innerHTML = '';
     updateScrollStatus(0, 0);
     return; 
   }
 
   const zoneEntries = run.filter(e => e.type === 'zone');
   if (!zoneEntries.length) { 
-    resultsBody.innerHTML = ''; 
-    summaryBar.innerHTML = '';
+    if (resultsBody) resultsBody.innerHTML = ''; 
+    if (summaryBar) summaryBar.innerHTML = '';
     updateScrollStatus(0, 0);
     return; 
   }
 
-  const thresholdMinutes = parseInt(thresholdInput.value, 10);
+  const thresholdMinutes = parseInt(thresholdInput ? thresholdInput.value : 6, 10);
   const { processed, categoryTotals, zoneTotals, totalTrackedSeconds } = processRunData(zoneEntries, thresholdMinutes);
   currentRunProcessed = processed;
 
@@ -216,7 +249,7 @@ function initInfiniteScroll() {
     if (entries[0].isIntersecting) {
       loadMoreRows();
     }
-  }, { rootMargin: '200px' });
+  }, { root: null, rootMargin: '300px', threshold: 0.1 });
 
   if (scrollSentinel) {
     observer.observe(scrollSentinel);
@@ -231,9 +264,9 @@ function loadMoreRows() {
   }
 }
 
-// Helper to apply search filtering and sorting
+// Helper to filter and sort entries cleanly
 function getFilteredAndSortedEntries() {
-  let filtered = currentRunProcessed;
+  let filtered = [...currentRunProcessed];
 
   if (currentSearchTerm.trim() !== '') {
     const term = currentSearchTerm.toLowerCase();
@@ -243,14 +276,14 @@ function getFilteredAndSortedEntries() {
   filtered.sort((a, b) => {
     let valA, valB;
     if (currentSortCol === 'timestamp') {
-      valA = a.originalIndex !== undefined ? a.originalIndex : a.timestamp;
-      valB = b.originalIndex !== undefined ? b.originalIndex : b.timestamp;
+      valA = a.timestamp || 0;
+      valB = b.timestamp || 0;
     } else if (currentSortCol === 'delta') {
       valA = a.deltaMs || 0;
       valB = b.deltaMs || 0;
     } else if (currentSortCol === 'zone') {
-      valA = a.zone.toLowerCase();
-      valB = b.zone.toLowerCase();
+      valA = (a.zone || '').toLowerCase();
+      valB = (b.zone || '').toLowerCase();
     }
 
     if (valA < valB) return currentSortDir === 'asc' ? -1 : 1;
@@ -267,7 +300,7 @@ function renderStandardTable(resetCount = true) {
   }
 
   if (!currentRunProcessed.length) {
-    resultsBody.innerHTML = '';
+    if (resultsBody) resultsBody.innerHTML = '';
     updateScrollStatus(0, 0);
     return;
   }
@@ -281,7 +314,7 @@ function renderStandardTable(resetCount = true) {
     const iconEl = document.getElementById(`icon${col}`);
     if (iconEl) {
       if (currentSortCol === col.toLowerCase()) {
-        iconEl.textContent = currentSortDir === 'asc' ? '▲' : '▼';
+        iconEl.textContent = currentSortDir === 'asc' ? ' ▲' : ' ▼';
       } else {
         iconEl.textContent = '';
       }
@@ -307,22 +340,25 @@ function renderStandardTable(resetCount = true) {
     `;
   });
 
-  resultsBody.innerHTML = html;
+  if (resultsBody) resultsBody.innerHTML = html;
   updateScrollStatus(pageEntries.length, totalEntries);
 }
 
 function updateScrollStatus(renderedCount, totalEntries) {
-  if (!scrollStatus || !scrollLoader) return;
+  if (!scrollStatus) return;
 
   if (totalEntries === 0) {
     scrollStatus.textContent = 'No matching entries found.';
-    scrollLoader.style.display = 'none';
+    if (scrollLoader) scrollLoader.style.display = 'none';
+    if (loadMoreBtn) loadMoreBtn.style.display = 'none';
   } else if (renderedCount >= totalEntries) {
     scrollStatus.textContent = `Showing all ${totalEntries} entries.`;
-    scrollLoader.style.display = 'none';
+    if (scrollLoader) scrollLoader.style.display = 'none';
+    if (loadMoreBtn) loadMoreBtn.style.display = 'none';
   } else {
     scrollStatus.textContent = `Showing ${renderedCount} of ${totalEntries} entries...`;
-    scrollLoader.style.display = 'block';
+    if (scrollLoader) scrollLoader.style.display = 'inline-block';
+    if (loadMoreBtn) loadMoreBtn.style.display = 'inline-block';
   }
 }
 
@@ -338,43 +374,45 @@ function renderAnalytics(categoryTotals, zoneTotals, totalSec, zoneEntries) {
 
   const spanMs = zoneEntries[zoneEntries.length - 1].timestamp - zoneEntries[0].timestamp;
 
-  summaryBar.innerHTML = `
-    <div style="width: 100%; display: flex; flex-direction: column; gap: 0.75rem;">
-      <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem; background: var(--bg); padding: 0.75rem; border-radius: 6px;">
-        <span>Maps/Zones: <strong>${formatDelta(categoryTotals.map)} (${mapPct}%)</strong></span>
-        <span>Hideout: <strong>${formatDelta(categoryTotals.hideout)} (${hideoutPct}%)</strong></span>
-        <span>Town/Hubs: <strong>${formatDelta(categoryTotals.town)} (${townPct}%)</strong></span>
-      </div>
-      
-      <div style="font-size: 0.85rem;">
-        <strong style="color: var(--accent);">Top Zones by Time:</strong>
-        <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 0.25rem;">
-          ${sortedZones.map(([zone, sec]) => `
-            <span>${zone}: <strong>${formatDelta(sec)}</strong> (${((sec / total) * 100).toFixed(0)}%)</span>
-          `).join(' • ')}
+  if (summaryBar) {
+    summaryBar.innerHTML = `
+      <div style="width: 100%; display: flex; flex-direction: column; gap: 0.75rem;">
+        <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem; background: var(--bg); padding: 0.75rem; border-radius: 6px;">
+          <span>Maps/Zones: <strong>${formatDelta(categoryTotals.map)} (${mapPct}%)</strong></span>
+          <span>Hideout: <strong>${formatDelta(categoryTotals.hideout)} (${hideoutPct}%)</strong></span>
+          <span>Town/Hubs: <strong>${formatDelta(categoryTotals.town)} (${townPct}%)</strong></span>
+        </div>
+        
+        <div style="font-size: 0.85rem;">
+          <strong style="color: var(--accent);">Top Zones by Time:</strong>
+          <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 0.25rem;">
+            ${sortedZones.map(([zone, sec]) => `
+              <span>${zone}: <strong>${formatDelta(sec)}</strong> (${((sec / total) * 100).toFixed(0)}%)</span>
+            `).join(' • ')}
+          </div>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; border-top: 1px solid var(--border); padding-top: 0.5rem; font-size: 0.85rem;">
+          <span>Entries: <strong>${zoneEntries.length}</strong></span>
+          <span>Run Duration: <strong>${formatDelta(Math.floor(spanMs / 1000))}</strong></span>
         </div>
       </div>
-
-      <div style="display: flex; justify-content: space-between; border-top: 1px solid var(--border); padding-top: 0.5rem; font-size: 0.85rem;">
-        <span>Entries: <strong>${zoneEntries.length}</strong></span>
-        <span>Run Duration: <strong>${formatDelta(Math.floor(spanMs / 1000))}</strong></span>
-      </div>
-    </div>
-  `;
+    `;
+  }
 }
 
 function displayCampaignSplits() {
-  const runIdx = runSelect.value;
+  const runIdx = runSelect ? runSelect.value : "0";
   const run = runIdx === 'all' ? currentRuns.flat() : currentRuns[parseInt(runIdx, 10)];
   if (!run || !run.length) {
-    campaignContent.innerHTML = `<p class="empty-msg">No entries found for this run selection.</p>`;
+    if (campaignContent) campaignContent.innerHTML = `<p class="empty-msg">No entries found for this run selection.</p>`;
     return;
   }
 
   const splits = calculateCampaignSplits(run);
 
   if (!splits.length) {
-    campaignContent.innerHTML = `<p class="empty-msg">No sequential campaign Act transitions found in this selected run.</p>`;
+    if (campaignContent) campaignContent.innerHTML = `<p class="empty-msg">No sequential campaign Act transitions found in this selected run.</p>`;
     return;
   }
 
@@ -412,25 +450,27 @@ function displayCampaignSplits() {
   });
 
   html += `</tbody></table>`;
-  campaignContent.innerHTML = html;
+  if (campaignContent) campaignContent.innerHTML = html;
 }
 
-// CSV Export Router
-csvBtn.addEventListener('click', () => {
-  if (viewMode.value === 'campaign') {
-    exportCampaignCSV();
-  } else {
-    exportStandardCSV();
-  }
-});
+// CSV Export Handler
+if (csvBtn) {
+  csvBtn.addEventListener('click', () => {
+    if (viewMode && viewMode.value === 'campaign') {
+      exportCampaignCSV();
+    } else {
+      exportStandardCSV();
+    }
+  });
+}
 
 function exportStandardCSV() {
-  const runIdx = runSelect.value;
+  const runIdx = runSelect ? runSelect.value : "0";
   const run = runIdx === 'all' ? currentRuns.flat() : currentRuns[parseInt(runIdx, 10)];
   if (!run || !run.length) return;
 
   const zoneEntries = run.filter(e => e.type === 'zone');
-  const thresholdMs = parseInt(thresholdInput.value, 10) * 60 * 1000;
+  const thresholdMs = parseInt(thresholdInput ? thresholdInput.value : 6, 10) * 60 * 1000;
   let csv = "timestamp,delta_seconds,delta_formatted,long_stop,zone,category\n";
   let prevTime = null;
 
@@ -444,11 +484,11 @@ function exportStandardCSV() {
     prevTime = entry.timestamp;
   });
 
-  downloadBlob(csv, `poe_session_${dateSelect.value}.csv`);
+  downloadBlob(csv, `poe_session_${dateSelect ? dateSelect.value : 'export'}.csv`);
 }
 
 function exportCampaignCSV() {
-  const runIdx = runSelect.value;
+  const runIdx = runSelect ? runSelect.value : "0";
   const run = runIdx === 'all' ? currentRuns.flat() : currentRuns[parseInt(runIdx, 10)];
   if (!run || !run.length) return;
 
@@ -460,8 +500,5 @@ function exportCampaignCSV() {
     csv += `"${s.act}",${s.level},${s.splitSec},"${formatDelta(s.splitSec)}",${s.totalSec},"${formatDelta(s.totalSec)}","${s.dateStr} ${s.timeStr}"\n`;
   });
 
-  downloadBlob(csv, `poe_campaign_splits_${dateSelect.value}.csv`);
+  downloadBlob(csv, `poe_campaign_splits_${dateSelect ? dateSelect.value : 'export'}.csv`);
 }
-
-// Initialize Observer on boot
-initInfiniteScroll();
