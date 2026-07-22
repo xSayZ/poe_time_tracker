@@ -5,32 +5,80 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>About - Path of Exile Time Tracker</title>
   <link rel="stylesheet" href="css/styles.css">
+  <style>
+    /* Page-specific spacing to prevent dense, heavy blocks of text */
+    .card h2 {
+      color: var(--accent);
+      font-size: 1.15rem;
+      margin-bottom: 0.85rem;
+      letter-spacing: 0.5px;
+    }
+    .card p {
+      color: var(--text);
+      font-size: 0.95rem;
+      line-height: 1.6;
+      margin-bottom: 1rem;
+    }
+    .card p:last-child {
+      margin-bottom: 0;
+    }
+    .card ul {
+      list-style-type: disc;
+      padding-left: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    .card li {
+      color: var(--text);
+      font-size: 0.95rem;
+      line-height: 1.5;
+    }
+    .back-link {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.9rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      transition: color 0.2s ease;
+    }
+    .back-link:hover {
+      color: var(--accent-hover);
+    }
+  </style>
 </head>
 <body>
 
 <div class="container">
   <header>
     <nav style="margin-bottom: 1rem;">
-      <a href="index.html" style="color: #646cff; text-decoration: none; font-weight: bold;">← Back to Tracker</a>
+      <a href="index.html" class="back-link">← Back to Tracker</a>
     </nav>
     <h1>About Path of Exile Time Tracker</h1>
     <p class="subtitle">Why this tool was built and how it helps you analyze your campaign runs.</p>
   </header>
 
   <div class="card">
-    <h2>Why It Was Built</h2>
+    <h2>Why I Built This</h2>
     <p>
-      Tracking campaign split times in Path of Exile usually requires either manual timer software like Livesplit or running third-party desktop tools. 
-      This tool was built to give players a lightweight, browser-based alternative that requires zero installation, no dependencies, and no account setup.
+      Look, I am honestly not the fastest Path of Exile player out there. When I run the campaign, I get distracted, spend way too long sorting gear in town, and completely lose track of where my time goes.
+    </p>
+    <p>
+      Trying to set up complex desktop split timers or wrestling with macro software just to see how badly I was lagging behind always felt like too much friction. I just wanted a simple, frictionless way to look at my <code>Client.txt</code> log and see the cold, hard numbers: where am I actually wasting all my time?
+    </p>
+    <p>
+      So, I built this tool for myself. And if you're trying to clean up your own campaign and shave off at least a few minutes, hopefully, it can help you too.
     </p>
   </div>
 
   <div class="card">
     <h2>Why You Should Use It</h2>
     <ul>
-      <li><strong>100% Local & Private:</strong> Your <code>Client.txt</code> log file is parsed directly inside your browser. Nothing is ever uploaded to a server or stored remotely.</li>
-      <li><strong>Automated Act Splits:</strong> Instantly breaks down your progression from Act 1 through Act 10 and Endgame Maps without needing to hit hotkeys while playing.</li>
-      <li><strong>Session Breakdowns:</strong> Filters out chat, deaths, and system text to show pure zone transition deltas, helping you pinpoint long stops and AFK gaps.</li>
+      <li><strong>100% Private & Local:</strong> Your log file is parsed directly inside your browser. Nothing is ever uploaded to a server or stored remotely.</li>
+      <li><strong>Zero Hotkeys Required:</strong> You don’t need to remember to hit split keys while dodging boss mechanics or clearing packs. Your act-by-act progression is tracked automatically from your game logs.</li>
+      <li><strong>Find Your Real Bottlenecks:</strong> It filters out system noise, chat, and deaths to show pure zone-transition deltas, helping you pinpoint long town stops and AFK gaps instantly.</li>
     </ul>
   </div>
 </div>

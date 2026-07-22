@@ -3,7 +3,6 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <!-- Title will be set dynamically in app.js -->
   <title>Path of Exile Time Tracker</title>
   <link rel="stylesheet" href="css/styles.css">
 </head>
@@ -11,18 +10,17 @@
 
 <div class="container">
   <header>
-    <nav style="margin-bottom: 1rem; text-align: right;">
+    <nav style="margin-bottom: 1rem; text-align: right; display: flex; justify-content: flex-end; align-items: center; gap: 1rem; flex-wrap: wrap;">
       <a href="about.html" style="color: #646cff; text-decoration: none; font-size: 0.9rem;">About & Why Use This</a>
-      <br>
-        <a href="https://github.com/xSayZ/poe_time_tracker" style="color: #808080; text-decoration: line; font-size: 0.9rem;">GitHub</a>
-      </br>
+      <a href="https://github.com/xSayZ/poe_time_tracker" style="color: #808080; text-decoration: underline; font-size: 0.9rem;" target="_blank" rel="noopener">GitHub</a>
+      <button id="themeToggleBtn" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.3rem 0.6rem;" aria-label="Toggle light and dark theme">Light Mode</button>
     </nav>
     <h1>Path of Exile Time Tracker <span class="version-tag" id="versionTag"></span></h1>
     <p class="subtitle">Drag & drop your Client.txt file to analyze zone-entry progression and campaign splits.</p>
   </header>
 
   <!-- Settings -->
-  <div class="card settings-grid">
+  <section class="card settings-grid" aria-label="Tracker Settings">
     <div class="field">
       <label for="gap">New Run Gap (Minutes)</label>
       <input type="number" id="gap" value="30" min="1">
@@ -31,13 +29,15 @@
       <label for="threshold">Long Stop Threshold (Minutes)</label>
       <input type="number" id="threshold" value="6" min="1">
     </div>
-  </div>
+  </section>
 
   <!-- Dropzone -->
-  <div class="card dropzone" id="dropzone">
-    <input type="file" id="fileInput" accept=".txt">
+  <div class="card dropzone" id="dropzone" tabindex="0" role="button" aria-label="Upload Client.txt file">
+    <input type="file" id="fileInput" accept=".txt" aria-hidden="true" tabindex="-1">
     <p>Drag & drop your <strong>Client.txt</strong> file here, or click to browse</p>
-    <div class="progress-bar" id="progressBar"><div class="progress-fill" id="progressFill"></div></div>
+    <div class="progress-bar" id="progressBar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
   </div>
 
   <!-- Client.txt File Location Guide -->
@@ -45,22 +45,22 @@
     <h3>Client.txt File Locations</h3>
     <div class="path-list">
       <div class="path-item">
-        <label>Windows (Steam!!!)</label>
-        <div class="code-copy" data-path="C:\Program Files (x86)\Grinding Gear Games\Path of Exile\logs\Client.txt">
+        <label>Windows (Steam)</label>
+        <div class="code-copy" data-path="C:\Program Files (x86)\Steam\steamapps\common\Path of Exile\logs\Client.txt" tabindex="0" role="button" aria-label="Copy Windows path">
           <span>C:\Program Files (x86)\Steam\steamapps\common\Path of Exile\logs\Client.txt</span>
           <span class="copy-btn-text">Click to copy</span>
         </div>
       </div>
       <div class="path-item">
         <label>Linux (Steam Proton)</label>
-        <div class="code-copy" data-path="~/.local/share/Steam/steamapps/compatdata/238960/pfx/drive_c/Program Files (x86)/Steam/steamapps/common/Path of Exile/logs/Client.txt">
+        <div class="code-copy" data-path="~/.local/share/Steam/steamapps/compatdata/238960/pfx/drive_c/Program Files (x86)/Steam/steamapps/common/Path of Exile/logs/Client.txt" tabindex="0" role="button" aria-label="Copy Linux path">
           <span>~/.local/share/Steam/steamapps/compatdata/238960/pfx/drive_c/Program Files (x86)/Steam/steamapps/common/Path of Exile/logs/Client.txt</span>
           <span class="copy-btn-text">Click to copy</span>
         </div>
       </div>
       <div class="path-item">
         <label>macOS</label>
-        <div class="code-copy" data-path="~/Library/Application Support/Path of Exile/logs/Client.txt">
+        <div class="code-copy" data-path="~/Library/Application Support/Path of Exile/logs/Client.txt" tabindex="0" role="button" aria-label="Copy macOS path">
           <span>~/Library/Application Support/Path of Exile/logs/Client.txt</span>
           <span class="copy-btn-text">Click to copy</span>
         </div>
@@ -69,7 +69,7 @@
   </div>
 
   <!-- Dashboard Controls -->
-  <div class="card" id="dashboard" style="display: none;">
+  <main class="card" id="dashboard" style="display: none;">
     <div class="selectors">
       <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
         <div class="field">
@@ -88,6 +88,7 @@
           <select id="runSelect"></select>
         </div>
       </div>
+
       <div class="btn-group">
         <button class="btn btn-secondary" id="markdownBtn">Copy summary</button>
         <button class="btn" id="csvBtn">Export to CSV</button>
@@ -96,27 +97,39 @@
 
     <!-- Standard Session View Container -->
     <div id="standardView">
-      <div class="summary-bar" id="summaryBar"></div>
+      <div class="summary-bar" id="summaryBar" aria-live="polite"></div>
       
-      <!-- Table Search Controls -->
       <div class="table-controls">
-        <input type="text" id="searchInput" class="search-input" placeholder="Search zone name (e.g., Blood Aqueduct, Hideout)...">
+        <label for="searchInput" class="sr-only">Search zone name</label>
+        <input type="text" id="searchInput" class="search-input" placeholder="Search zone name (e.g., Blood Aqueduct, Hideout)..." aria-label="Search zone name">
       </div>
 
-      <table id="resultsTable">
+      <table id="resultsTable" aria-label="Session Zone Progression Log">
         <thead>
           <tr>
-            <th class="sortable" id="thTimestamp">Timestamp <span class="sort-icon" id="iconTimestamp">▲</span></th>
-            <th class="sortable" id="thDelta">Delta <span class="sort-icon" id="iconDelta"></span></th>
-            <th class="sortable" id="thZone">Zone <span class="sort-icon" id="iconZone"></span></th>
+            <th scope="col" id="thTimestamp" aria-sort="ascending">
+              <button type="button" class="sort-header-btn">
+                Timestamp <span class="sort-icon" id="iconTimestamp" aria-hidden="true">▲</span>
+              </button>
+            </th>
+            <th scope="col" id="thDelta" aria-sort="none">
+              <button type="button" class="sort-header-btn">
+                Delta <span class="sort-icon" id="iconDelta" aria-hidden="true"></span>
+              </button>
+            </th>
+            <th scope="col" id="thZone" aria-sort="none">
+              <button type="button" class="sort-header-btn">
+                Zone <span class="sort-icon" id="iconZone" aria-hidden="true"></span>
+              </button>
+            </th>
           </tr>
         </thead>
-        <tbody></tbody>
+        <tbody id="resultsBody"></tbody>
       </table>
 
       <div id="scrollSentinel" class="scroll-sentinel">
-        <div id="scrollLoader" class="loader" style="display: none;"></div>
-        <span id="scrollStatus"></span>
+        <div id="scrollLoader" class="loader" style="display: none;" aria-hidden="true"></div>
+        <span id="scrollStatus" aria-live="polite" aria-atomic="true"></span>
         <button id="loadMoreBtn" class="btn" style="display: none; margin-top: 0.5rem; font-size: 0.8rem; padding: 0.35rem 0.75rem;">Load More Rows</button>
       </div>
     </div>
@@ -125,7 +138,7 @@
     <div id="campaignView" style="display: none;">
       <div id="campaignContent"></div>
     </div>
-  </div>
+  </main>
 </div>
 
 <script type="module" src="js/app.js"></script>

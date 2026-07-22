@@ -19,6 +19,7 @@ function initVersion() {
 initVersion();
 
 // --- State ---
+let rawLogText = '';
 let parsedEntries = [];
 let currentRuns = [];
 let currentRunProcessed = [];
@@ -41,7 +42,7 @@ const dashboard = document.getElementById('dashboard');
 const viewMode = document.getElementById('viewMode');
 const dateSelect = document.getElementById('dateSelect');
 const runSelect = document.getElementById('runSelect');
-const resultsBody = document.querySelector('#resultsTable tbody');
+const resultsBody = document.getElementById('resultsBody');
 const summaryBar = document.getElementById('summaryBar');
 const standardView = document.getElementById('standardView');
 const campaignView = document.getElementById('campaignView');
@@ -56,7 +57,7 @@ const loadMoreBtn = document.getElementById('loadMoreBtn');
 const gapInput = document.getElementById('gap');
 const thresholdInput = document.getElementById('threshold');
 
-// --- Initialization & Local Storage ---
+// Local Storage initialization
 if (gapInput) gapInput.value = localStorage.getItem('poe_gap') || 30;
 if (thresholdInput) thresholdInput.value = localStorage.getItem('poe_threshold') || 6;
 
@@ -74,7 +75,7 @@ if (thresholdInput) {
   });
 }
 
-// Event delegation for path copy clicks
+// Event Delegation for Copy & Keyboard Action
 document.addEventListener('click', (e) => {
   const copyEl = e.target.closest('.code-copy');
   if (copyEl) {
@@ -83,10 +84,25 @@ document.addEventListener('click', (e) => {
   }
 });
 
-// Drag & Drop Handlers
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' || e.key === ' ') {
+    const copyEl = e.target.closest('.code-copy');
+    if (copyEl) {
+      e.preventDefault();
+      const path = copyEl.dataset.path;
+      if (path) copyPath(copyEl, path);
+    }
+  }
+});
+
+// Dropzone Drag/Drop & Keyboard Access
 if (dropzone) {
-  dropzone.addEventListener('click', (e) => {
-    if (e.target !== fileInput) fileInput.click();
+  dropzone.addEventListener('click', () => fileInput.click());
+  dropzone.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      fileInput.click();
+    }
   });
   dropzone.addEventListener('dragover', (e) => { 
     e.preventDefault(); 
@@ -157,8 +173,13 @@ async function handleFileSelect(file) {
   if (progressBar) progressBar.style.display = 'block';
   if (progressFill) progressFill.style.width = '0%';
 
+  rawLogText = await file.text();
+
   parsedEntries = await parseClientLogFile(file, (percent) => {
-    if (progressFill) progressFill.style.width = percent + '%';
+    if (progressFill) {
+      progressFill.style.width = percent + '%';
+      progressBar.setAttribute('aria-valuenow', Math.round(percent));
+    }
   });
 
   if (progressBar) progressBar.style.display = 'none';
@@ -320,13 +341,24 @@ function renderStandardTable(resetCount = true) {
   const totalEntries = filtered.length;
   const pageEntries = filtered.slice(0, visibleCount);
 
-  ['Timestamp', 'Delta', 'Zone'].forEach(col => {
-    const iconEl = document.getElementById(`icon${col}`);
-    if (iconEl) {
-      if (currentSortCol === col.toLowerCase()) {
-        iconEl.textContent = currentSortDir === 'asc' ? ' ▲' : ' ▼';
+  // Accessible ARIA Sort Status Update
+  const cols = [
+    { name: 'Timestamp', el: thTimestamp, icon: 'iconTimestamp' },
+    { name: 'Delta', el: thDelta, icon: 'iconDelta' },
+    { name: 'Zone', el: thZone, icon: 'iconZone' }
+  ];
+
+  cols.forEach(col => {
+    const iconEl = document.getElementById(col.icon);
+    const key = col.name.toLowerCase();
+    if (col.el) {
+      if (currentSortCol === key) {
+        const dirAttr = currentSortDir === 'asc' ? 'ascending' : 'descending';
+        col.el.setAttribute('aria-sort', dirAttr);
+        if (iconEl) iconEl.textContent = currentSortDir === 'asc' ? ' ▲' : ' ▼';
       } else {
-        iconEl.textContent = '';
+        col.el.setAttribute('aria-sort', 'none');
+        if (iconEl) iconEl.textContent = '';
       }
     }
   });
@@ -337,13 +369,13 @@ function renderStandardTable(resetCount = true) {
     const isTown = entry.category === 'town';
 
     html += `
-      <tr class="${entry.isLong ? 'long-stop' : ''}">
+      <tr class="${entry.isLong ? 'row-long-stop' : ''}">
         <td>${entry.dateStr} ${entry.timeStr}</td>
         <td>${deltaStr}</td>
         <td>
           ${entry.zone}
-          ${isTown ? '<span class="badge-town">TOWN</span>' : ''}
-          ${entry.isLong ? '<span class="badge-danger">LONG STOP</span>' : ''}
+          ${isTown ? '<span class="badge badge-town"><span aria-hidden="true"></span>TOWN</span>' : ''}
+          ${entry.isLong ? '<span class="badge badge-danger"><span aria-hidden="true">⏸ </span>LONG STOP</span>' : ''}
         </td>
       </tr>
     `;
@@ -365,7 +397,7 @@ function updateScrollStatus(renderedCount, totalEntries) {
     if (scrollLoader) scrollLoader.style.display = 'none';
     if (loadMoreBtn) loadMoreBtn.style.display = 'none';
   } else {
-    scrollStatus.textContent = `Showing ${renderedCount} of ${totalEntries} entries...`;
+    scrollStatus.textContent = `Showing ${renderedCount} of ${totalEntries} entries.`;
     if (scrollLoader) scrollLoader.style.display = 'inline-block';
     if (loadMoreBtn) loadMoreBtn.style.display = 'inline-block';
   }
@@ -430,14 +462,14 @@ function displayCampaignSplits() {
   let html = `
     <div class="campaign-title">Campaign Act Split Report</div>
     <div class="campaign-subtitle">Total Campaign Duration: <strong>${formatDelta(totalTime)}</strong></div>
-    <table>
+    <table aria-label="Campaign Act Split Breakdown">
       <thead>
         <tr>
-          <th>Act / Stage</th>
-          <th>Character Level</th>
-          <th>Act Split</th>
-          <th>Total Elapsed</th>
-          <th>Entry Timestamp</th>
+          <th scope="col">Act / Stage</th>
+          <th scope="col">Character Level</th>
+          <th scope="col">Act Split</th>
+          <th scope="col">Total Elapsed</th>
+          <th scope="col">Entry Timestamp</th>
         </tr>
       </thead>
       <tbody>
@@ -462,7 +494,7 @@ function displayCampaignSplits() {
   if (campaignContent) campaignContent.innerHTML = html;
 }
 
-// --- Markdown Export Logic ---
+// Markdown Export Logic
 function generateCampaignMarkdown(splits) {
   if (!splits || !splits.length) return '';
 
@@ -475,10 +507,9 @@ function generateCampaignMarkdown(splits) {
 
   const totalTime = splits.length > 1 ? splits[splits.length - 1].totalSec : 0;
 
-  let md = `### 🏆 Path of Exile Campaign Progression (${titleSpan})\n`;
+  let md = `### Path of Exile Campaign Progression (${titleSpan})\n`;
   md += `**Total Duration:** \`${formatDelta(totalTime)}\` | **Date:** \`${splits[0].dateStr}\`\n\n`;
   
-  // Format table inside a code block for clean Discord alignment
   md += "```\n";
   md += "Act / Stage   Level   Split Time   Total Elapsed\n";
   md += "------------------------------------------------\n";
@@ -520,7 +551,7 @@ if (markdownBtn) {
       markdownBtn.textContent = 'Copied!';
       setTimeout(() => { markdownBtn.textContent = originalText; }, 2000);
     } catch (err) {
-      alert("Failed to copy to clipboard automatically. Check browser permissions.");
+      alert("Failed to copy to clipboard automatically.");
     }
   });
 }
@@ -573,4 +604,34 @@ function exportCampaignCSV() {
   });
 
   downloadBlob(csv, `poe_campaign_splits_${dateSelect ? dateSelect.value : 'export'}.csv`);
+}
+
+const themeToggleBtn = document.getElementById('themeToggleBtn');
+
+function initTheme() {
+  const savedTheme = localStorage.getItem('poe_theme') || 'dark';
+  if (savedTheme === 'light') {
+    document.documentElement.setAttribute('data-theme', 'light');
+    if (themeToggleBtn) themeToggleBtn.textContent = 'Dark Mode';
+  } else {
+    document.documentElement.removeAttribute('data-theme');
+    if (themeToggleBtn) themeToggleBtn.textContent = 'Light Mode';
+  }
+}
+
+initTheme();
+
+if (themeToggleBtn) {
+  themeToggleBtn.addEventListener('click', () => {
+    const currentTheme = document.documentElement.getAttribute('data-theme');
+    if (currentTheme === 'light') {
+      document.documentElement.removeAttribute('data-theme');
+      localStorage.setItem('poe_theme', 'dark');
+      themeToggleBtn.textContent = 'Light Mode';
+    } else {
+      document.documentElement.setAttribute('data-theme', 'light');
+      localStorage.setItem('poe_theme', 'light');
+      themeToggleBtn.textContent = 'Dark Mode';
+    }
+  });
 }
