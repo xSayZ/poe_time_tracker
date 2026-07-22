@@ -606,6 +606,7 @@ function exportCampaignCSV() {
   downloadBlob(csv, `poe_campaign_splits_${dateSelect ? dateSelect.value : 'export'}.csv`);
 }
 
+// --- Theme Management (Dark Mode Default) ---
 const themeToggleBtn = document.getElementById('themeToggleBtn');
 
 function initTheme() {

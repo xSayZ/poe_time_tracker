@@ -286,9 +286,26 @@ select {
 .search-input:focus { border-color: var(--accent); }
 
 table { 
-  width: 100%; table-layout: fixed; border-collapse: collapse; margin-top: 0.5rem; font-size: 0.9rem; }
-th, td { text-align: left; padding: 0.65rem 0.75rem; border-bottom: 1px solid var(--border); }
-th { color: var(--text-muted); font-weight: 600; font-size: 0.8rem; overflow: hidden; text-transform: ellipsis; white-space: nowrap;}
+  width: 100%; 
+  table-layout: fixed; 
+  border-collapse: collapse; 
+  margin-top: 0.5rem; 
+  font-size: 0.9rem; 
+}
+
+th, td { 
+  text-align: left; 
+  padding: 0.65rem 0.75rem; 
+  border-bottom: 1px solid var(--border); 
+}
+
+th { 
+  color: var(--text-muted); 
+  font-weight: 600; 
+  font-size: 0.8rem; 
+  text-transform: uppercase;
+  padding: 0; /* Let the inner button handle its own padding */
+}
 
 /* Specific column width distributions */
 th:nth-child(1), td:nth-child(1) { width: 32%; }
