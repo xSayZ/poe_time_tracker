@@ -3,14 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Path of Exile Time Tracker v0.0.7</title>
+  <!-- Title will be set dynamically in app.js -->
+  <title>Path of Exile Time Tracker</title>
   <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
 
 <div class="container">
   <header>
-    <h1>Path of Exile Time Tracker <span class="version-tag">v0.0.7</span></h1>
+    <h1>Path of Exile Time Tracker <span class="version-tag" id="versionTag"></span></h1>
     <p class="subtitle">Drag & drop your Client.txt file to analyze zone-entry progression and campaign splits.</p>
   </header>
 
@@ -81,14 +82,17 @@
           <select id="runSelect"></select>
         </div>
       </div>
-      <button class="btn" id="csvBtn">Export to CSV</button>
+      <div class="btn-group">
+        <button class="btn btn-secondary" id="markdownBtn">Copy summary</button>
+        <button class="btn" id="csvBtn">Export to CSV</button>
+      </div>
     </div>
 
     <!-- Standard Session View Container -->
     <div id="standardView">
       <div class="summary-bar" id="summaryBar"></div>
       
-      <!-- Table Search & Pagination Controls -->
+      <!-- Table Search Controls -->
       <div class="table-controls">
         <input type="text" id="searchInput" class="search-input" placeholder="Search zone name (e.g., Blood Aqueduct, Hideout)...">
       </div>

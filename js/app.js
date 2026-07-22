@@ -1,3 +1,4 @@
+import { APP_VERSION, APP_NAME } from './version.js';
 import { formatDelta, copyPath, downloadBlob } from './utils.js';
 import { parseClientLogFile } from './parser.js';
 import { 
@@ -6,6 +7,16 @@ import {
   processRunData, 
   calculateCampaignSplits 
 } from './tracker.js';
+
+function initVersion() {
+  document.title = `${APP_NAME} ${APP_VERSION}`;
+  const versionTag = document.getElementById('versionTag');
+  if (versionTag) {
+    versionTag.textContent = APP_VERSION;
+  }
+}
+
+initVersion();
 
 // --- State ---
 let parsedEntries = [];
@@ -36,6 +47,7 @@ const standardView = document.getElementById('standardView');
 const campaignView = document.getElementById('campaignView');
 const campaignContent = document.getElementById('campaignContent');
 const csvBtn = document.getElementById('csvBtn');
+const markdownBtn = document.getElementById('markdownBtn');
 const searchInput = document.getElementById('searchInput');
 const scrollSentinel = document.getElementById('scrollSentinel');
 const scrollLoader = document.getElementById('scrollLoader');
@@ -117,7 +129,7 @@ if (searchInput) {
   });
 }
 
-// Table Header Sorting Attachments
+// Table Header Sorting
 const thTimestamp = document.getElementById('thTimestamp');
 const thDelta = document.getElementById('thDelta');
 const thZone = document.getElementById('thZone');
@@ -264,7 +276,6 @@ function loadMoreRows() {
   }
 }
 
-// Helper to filter and sort entries cleanly
 function getFilteredAndSortedEntries() {
   let filtered = [...currentRunProcessed];
 
@@ -309,7 +320,6 @@ function renderStandardTable(resetCount = true) {
   const totalEntries = filtered.length;
   const pageEntries = filtered.slice(0, visibleCount);
 
-  // Update Sort Header Icons
   ['Timestamp', 'Delta', 'Zone'].forEach(col => {
     const iconEl = document.getElementById(`icon${col}`);
     if (iconEl) {
@@ -321,7 +331,6 @@ function renderStandardTable(resetCount = true) {
     }
   });
 
-  // Render Table Rows
   let html = '';
   pageEntries.forEach(entry => {
     const deltaStr = entry.deltaMs ? formatDelta(Math.floor(entry.deltaMs / 1000)) : '--';
@@ -451,6 +460,69 @@ function displayCampaignSplits() {
 
   html += `</tbody></table>`;
   if (campaignContent) campaignContent.innerHTML = html;
+}
+
+// --- Markdown Export Logic ---
+function generateCampaignMarkdown(splits) {
+  if (!splits || !splits.length) return '';
+
+  const numericActs = splits.map(s => s.act).filter(a => a !== 'Maps');
+  const lastAct = numericActs.length ? numericActs[numericActs.length - 1] : '1';
+  const reachedMaps = splits.some(s => s.act === 'Maps');
+
+  let titleSpan = `Act 1 - Act ${lastAct}`;
+  if (reachedMaps) titleSpan += ' (Endgame Maps)';
+
+  const totalTime = splits.length > 1 ? splits[splits.length - 1].totalSec : 0;
+
+  let md = `### 🏆 Path of Exile Campaign Progression (${titleSpan})\n`;
+  md += `**Total Duration:** \`${formatDelta(totalTime)}\` | **Date:** \`${splits[0].dateStr}\`\n\n`;
+  
+  // Format table inside a code block for clean Discord alignment
+  md += "```\n";
+  md += "Act / Stage   Level   Split Time   Total Elapsed\n";
+  md += "------------------------------------------------\n";
+
+  splits.forEach((s, i) => {
+    const splitFormatted = i === 0 ? '--' : formatDelta(s.splitSec);
+    const label = s.act === "Maps" ? "Endgame Maps" : `Act ${s.act}`;
+    
+    const col1 = label.padEnd(14, ' ');
+    const col2 = `Lv. ${s.level}`.padEnd(8, ' ');
+    const col3 = splitFormatted.padEnd(13, ' ');
+    const col4 = formatDelta(s.totalSec);
+    
+    md += `${col1}${col2}${col3}${col4}\n`;
+  });
+
+  md += "```\n";
+  md += `*Generated with ${APP_NAME} ${APP_VERSION}*`;
+  return md;
+}
+
+if (markdownBtn) {
+  markdownBtn.addEventListener('click', async () => {
+    const runIdx = runSelect ? runSelect.value : "0";
+    const run = runIdx === 'all' ? currentRuns.flat() : currentRuns[parseInt(runIdx, 10)];
+    if (!run || !run.length) return;
+
+    const splits = calculateCampaignSplits(run);
+    if (!splits.length) {
+      alert("No sequential campaign splits found in this run to copy.");
+      return;
+    }
+
+    const markdownText = generateCampaignMarkdown(splits);
+
+    try {
+      await navigator.clipboard.writeText(markdownText);
+      const originalText = markdownBtn.textContent;
+      markdownBtn.textContent = 'Copied!';
+      setTimeout(() => { markdownBtn.textContent = originalText; }, 2000);
+    } catch (err) {
+      alert("Failed to copy to clipboard automatically. Check browser permissions.");
+    }
+  });
 }
 
 // CSV Export Handler

@@ -122,7 +122,6 @@ input[type="number"]:focus, select:focus {
 .dropzone p { color: var(--text-muted); font-size: 0.95rem; }
 .dropzone strong { color: var(--accent); }
 
-/* Client File Path Guide Notes */
 .location-notes {
   margin-top: -0.5rem;
   background: var(--card-bg);
@@ -198,6 +197,12 @@ input[type="number"]:focus, select:focus {
   margin-bottom: 1rem; 
 }
 
+.btn-group {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
 select { 
   background: var(--bg); 
   border: 1px solid var(--border); 
@@ -216,13 +221,22 @@ select {
   font-weight: 600; 
   border-radius: 4px; 
   cursor: pointer; 
-  transition: background 0.2s ease; 
+  transition: all 0.2s ease; 
 }
 
 .btn:hover { background: var(--accent-hover); }
-.btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-/* Table Controls Bar */
+.btn-secondary {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+}
+
+.btn-secondary:hover {
+  background: rgba(90, 251, 187, 0.1);
+  color: var(--accent-hover);
+}
+
 .table-controls {
   display: flex;
   justify-content: space-between;
@@ -256,7 +270,6 @@ th.sortable:hover { color: var(--accent); }
 
 tr.long-stop { background-color: var(--danger-bg); }
 
-/* Infinite Scroll Sentinel & Loader */
 .scroll-sentinel {
   display: flex;
   flex-direction: column;
@@ -283,9 +296,6 @@ tr.long-stop { background-color: var(--danger-bg); }
   100% { transform: rotate(360deg); }
 }
 
-.page-info { font-size: 0.85rem; color: var(--text-muted); }
-
-/* Badges */
 .badge-danger { 
   color: var(--danger); 
   font-weight: bold; 
