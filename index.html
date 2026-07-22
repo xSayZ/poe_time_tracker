@@ -151,6 +151,12 @@
   const summaryBar = document.getElementById('summaryBar');
   const csvBtn = document.getElementById('csvBtn');
 
+  // Town keywords for zone classification
+  const TOWN_KEYWORDS = [
+    'encampment', 'watch', 'highgate', 'shores', 'bridge', 
+    'kingsmarch', 'rogue harbour', 'aspirants\' plaza', 'town'
+  ];
+
   // File selection
   dropzone.addEventListener('click', () => fileInput.click());
   dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
@@ -164,7 +170,7 @@
     if (e.target.files.length) processFile(e.target.files[0]);
   });
 
-  // Memory-efficient stream parsing
+  // Stream parsing
   async function processFile(file) {
     progressBar.style.display = 'block';
     progressFill.style.width = '0%';
@@ -188,7 +194,7 @@
 
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split('\n');
-      buffer = lines.pop(); // Hold remainder
+      buffer = lines.pop();
 
       for (const line of lines) {
         const match = line.trim().match(LINE_REGEX);
@@ -214,7 +220,7 @@
   function populateDates() {
     const dates = [...new Set(parsedEntries.map(e => e.dateStr))];
     dateSelect.innerHTML = dates.map(d => `<option value="${d}">${d}</option>`).join('') + '<option value="all">All Dates</option>';
-    dateSelect.value = dates[dates.length - 1]; // Default to most recent date
+    dateSelect.value = dates[dates.length - 1];
     recalculate();
   }
 
@@ -254,6 +260,13 @@
     displayRun();
   }
 
+  function categorizeZone(zoneName) {
+    const lower = zoneName.toLowerCase();
+    if (lower.includes('hideout')) return 'hideout';
+    if (TOWN_KEYWORDS.some(kw => lower.includes(kw))) return 'town';
+    return 'map';
+  }
+
   function displayRun() {
     const runIdx = runSelect.value;
     const run = runIdx === 'all' ? currentRuns.flat() : currentRuns[parseInt(runIdx, 10)];
@@ -263,10 +276,27 @@
     let html = '';
     let prevTime = null;
 
-    run.forEach(entry => {
+    // Per-zone time tracking structures
+    const zoneTotals = {};
+    const categoryTotals = { hideout: 0, map: 0, town: 0 };
+    let totalTrackedSeconds = 0;
+
+    for (let i = 0; i < run.length; i++) {
+      const entry = run[i];
       const deltaMs = prevTime ? (entry.timestamp - prevTime) : null;
       const isLong = deltaMs && deltaMs > thresholdMs;
       const deltaStr = deltaMs ? formatDelta(Math.floor(deltaMs / 1000)) : '--';
+
+      // Accumulate time spent in previous zone
+      if (prevTime && i > 0) {
+        const prevEntry = run[i - 1];
+        const durationSec = Math.floor(deltaMs / 1000);
+        
+        zoneTotals[prevEntry.zone] = (zoneTotals[prevEntry.zone] || 0) + durationSec;
+        const cat = categorizeZone(prevEntry.zone);
+        categoryTotals[cat] += durationSec;
+        totalTrackedSeconds += durationSec;
+      }
 
       html += `
         <tr class="${isLong ? 'long-stop' : ''}">
@@ -279,14 +309,49 @@
         </tr>
       `;
       prevTime = entry.timestamp;
-    });
+    }
 
     resultsBody.innerHTML = html;
 
+    // Render Zone & Category Breakdown
+    renderAnalytics(categoryTotals, zoneTotals, totalTrackedSeconds, run);
+  }
+
+  function renderAnalytics(categoryTotals, zoneTotals, totalSec, run) {
+    const total = totalSec || 1; // Prevent div by 0
+    const hideoutPct = ((categoryTotals.hideout / total) * 100).toFixed(1);
+    const mapPct = ((categoryTotals.map / total) * 100).toFixed(1);
+    const townPct = ((categoryTotals.town / total) * 100).toFixed(1);
+
+    // Sort zones by duration descending
+    const sortedZones = Object.entries(zoneTotals)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5); // Top 5 zones
+
     const spanMs = run[run.length - 1].timestamp - run[0].timestamp;
+
     summaryBar.innerHTML = `
-      <span>Entries: <strong>${run.length}</strong></span>
-      <span>Run Duration: <strong>${formatDelta(Math.floor(spanMs / 1000))}</strong></span>
+      <div style="width: 100%; display: flex; flex-direction: column; gap: 0.75rem;">
+        <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem; background: var(--bg); padding: 0.75rem; border-radius: 6px;">
+          <span>Maps/Zones: <strong>${formatDelta(categoryTotals.map)} (${mapPct}%)</strong></span>
+          <span>Hideout: <strong>${formatDelta(categoryTotals.hideout)} (${hideoutPct}%)</strong></span>
+          <span>Town/Hubs: <strong>${formatDelta(categoryTotals.town)} (${townPct}%)</strong></span>
+        </div>
+        
+        <div style="font-size: 0.85rem;">
+          <strong style="color: var(--accent);">Top Zones by Time:</strong>
+          <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 0.25rem;">
+            ${sortedZones.map(([zone, sec]) => `
+              <span>${zone}: <strong>${formatDelta(sec)}</strong> (${((sec / total) * 100).toFixed(0)}%)</span>
+            `).join(' • ')}
+          </div>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; border-top: 1px solid var(--border); padding-top: 0.5rem; font-size: 0.85rem;">
+          <span>Entries: <strong>${run.length}</strong></span>
+          <span>Run Duration: <strong>${formatDelta(Math.floor(spanMs / 1000))}</strong></span>
+        </div>
+      </div>
     `;
   }
 
@@ -306,15 +371,16 @@
     if (!run || !run.length) return;
 
     const thresholdMs = parseInt(thresholdInput.value, 10) * 60 * 1000;
-    let csv = "timestamp,delta_seconds,delta_formatted,long_stop,zone\n";
+    let csv = "timestamp,delta_seconds,delta_formatted,long_stop,zone,category\n";
     let prevTime = null;
 
     run.forEach(entry => {
       const deltaMs = prevTime ? (entry.timestamp - prevTime) : 0;
       const deltaSec = Math.floor(deltaMs / 1000);
       const isLong = prevTime && deltaMs > thresholdMs;
+      const cat = categorizeZone(entry.zone);
 
-      csv += `"${entry.dateStr} ${entry.timeStr}",${deltaSec},"${formatDelta(deltaSec)}","${isLong ? 'YES' : ''}","${entry.zone.replace(/"/g, '""')}"\n`;
+      csv += `"${entry.dateStr} ${entry.timeStr}",${deltaSec},"${formatDelta(deltaSec)}","${isLong ? 'YES' : ''}","${entry.zone.replace(/"/g, '""')}","${cat}"\n`;
       prevTime = entry.timestamp;
     });
 
