@@ -91,16 +91,6 @@
       <!-- Table Search & Pagination Controls -->
       <div class="table-controls">
         <input type="text" id="searchInput" class="search-input" placeholder="Search zone name (e.g., Blood Aqueduct, Hideout)...">
-        <div style="display: flex; align-items: center; gap: 0.5rem;">
-          <label for="pageSizeSelect" style="font-size: 0.8rem; color: var(--text-muted);">Rows per page:</label>
-          <select id="pageSizeSelect" style="min-width: 80px; padding: 0.35rem 0.5rem;">
-            <option value="25">25</option>
-            <option value="50" selected>50</option>
-            <option value="100">100</option>
-            <option value="250">250</option>
-            <option value="all">All</option>
-          </select>
-        </div>
       </div>
 
       <table id="resultsTable">
@@ -114,10 +104,9 @@
         <tbody></tbody>
       </table>
 
-      <div class="pagination" id="paginationBar">
-        <button class="pagination-btn" id="prevPageBtn">Previous</button>
-        <span class="page-info" id="pageInfo">Page 1 of 1</span>
-        <button class="pagination-btn" id="nextPageBtn">Next</button>
+      <div id="scrollSentinel" class="scroll-sentinel">
+        <div id="scrollLoader" class="loader" style="display: none;"></div>
+        <span id="scrollStatus"></span>
       </div>
     </div>
 

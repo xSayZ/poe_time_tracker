@@ -15,8 +15,10 @@ let currentRunProcessed = [];
 let currentSearchTerm = '';
 let currentSortCol = 'timestamp';
 let currentSortDir = 'asc';
-let currentPage = 1;
-let pageSize = 50;
+
+let visibleCount = 50; 
+const BATCH_SIZE = 50;
+let observer = null;
 
 // --- DOM References ---
 const dropzone = document.getElementById('dropzone');
@@ -35,9 +37,9 @@ const campaignView = document.getElementById('campaignView');
 const campaignContent = document.getElementById('campaignContent');
 const csvBtn = document.getElementById('csvBtn');
 const searchInput = document.getElementById('searchInput');
-const pageSizeSelect = document.getElementById('pageSizeSelect');
-const prevPageBtn = document.getElementById('prevPageBtn');
-const nextPageBtn = document.getElementById('nextPageBtn');
+const scrollSentinel = document.getElementById('scrollSentinel');
+const scrollLoader = document.getElementById('scrollLoader');
+const scrollStatus = document.getElementById('scrollStatus');
 const gapInput = document.getElementById('gap');
 const thresholdInput = document.getElementById('threshold');
 
@@ -89,29 +91,10 @@ viewMode.addEventListener('change', () => {
   }
 });
 
-// Table Controls Handlers
+// Table Filter & Sorting Handlers
 searchInput.addEventListener('input', (e) => {
   currentSearchTerm = e.target.value;
-  currentPage = 1;
-  renderStandardTable();
-});
-
-pageSizeSelect.addEventListener('change', (e) => {
-  pageSize = e.target.value;
-  currentPage = 1;
-  renderStandardTable();
-});
-
-prevPageBtn.addEventListener('click', () => {
-  if (currentPage > 1) {
-    currentPage--;
-    renderStandardTable();
-  }
-});
-
-nextPageBtn.addEventListener('click', () => {
-  currentPage++;
-  renderStandardTable();
+  renderStandardTable(true);
 });
 
 document.getElementById('thTimestamp').addEventListener('click', () => handleSort('timestamp'));
@@ -125,8 +108,7 @@ function handleSort(column) {
     currentSortCol = column;
     currentSortDir = column === 'delta' ? 'desc' : 'asc';
   }
-  currentPage = 1;
-  renderStandardTable();
+  renderStandardTable(true);
 }
 
 // File Processing
@@ -201,7 +183,7 @@ function displayRun() {
   if (!run || !run.length) { 
     resultsBody.innerHTML = ''; 
     summaryBar.innerHTML = '';
-    updatePaginationUI(0, 1);
+    updateScrollStatus(0, 0);
     return; 
   }
 
@@ -209,7 +191,7 @@ function displayRun() {
   if (!zoneEntries.length) { 
     resultsBody.innerHTML = ''; 
     summaryBar.innerHTML = '';
-    updatePaginationUI(0, 1);
+    updateScrollStatus(0, 0);
     return; 
   }
 
@@ -218,25 +200,41 @@ function displayRun() {
   currentRunProcessed = processed;
 
   renderAnalytics(categoryTotals, zoneTotals, totalTrackedSeconds, zoneEntries);
-  currentPage = 1;
-  renderStandardTable();
+  renderStandardTable(true);
 }
 
-function renderStandardTable() {
-  if (!currentRunProcessed.length) {
-    resultsBody.innerHTML = '';
-    updatePaginationUI(0, 1);
-    return;
-  }
+// --- Infinite Scroll Setup ---
+function initInfiniteScroll() {
+  if (observer) observer.disconnect();
 
-  // 1. Filter
+  observer = new IntersectionObserver((entries) => {
+    if (entries[0].isIntersecting) {
+      loadMoreRows();
+    }
+  }, { rootMargin: '200px' });
+
+  if (scrollSentinel) {
+    observer.observe(scrollSentinel);
+  }
+}
+
+function loadMoreRows() {
+  const filteredTotal = getFilteredAndSortedEntries().length;
+  if (visibleCount < filteredTotal) {
+    visibleCount += BATCH_SIZE;
+    renderStandardTable(false);
+  }
+}
+
+// Helper to apply search filtering and sorting
+function getFilteredAndSortedEntries() {
   let filtered = currentRunProcessed;
+
   if (currentSearchTerm.trim() !== '') {
     const term = currentSearchTerm.toLowerCase();
     filtered = filtered.filter(e => e.zone.toLowerCase().includes(term));
   }
 
-  // 2. Sort
   filtered.sort((a, b) => {
     let valA, valB;
     if (currentSortCol === 'timestamp') {
@@ -255,28 +253,37 @@ function renderStandardTable() {
     return 0;
   });
 
-  // Sort icon updates
+  return filtered;
+}
+
+function renderStandardTable(resetCount = true) {
+  if (resetCount) {
+    visibleCount = BATCH_SIZE;
+  }
+
+  if (!currentRunProcessed.length) {
+    resultsBody.innerHTML = '';
+    updateScrollStatus(0, 0);
+    return;
+  }
+
+  const filtered = getFilteredAndSortedEntries();
+  const totalEntries = filtered.length;
+  const pageEntries = filtered.slice(0, visibleCount);
+
+  // Update Sort Header Icons
   ['Timestamp', 'Delta', 'Zone'].forEach(col => {
     const iconEl = document.getElementById(`icon${col}`);
-    if (currentSortCol === col.toLowerCase()) {
-      iconEl.textContent = currentSortDir === 'asc' ? '▲' : '▼';
-    } else {
-      iconEl.textContent = '';
+    if (iconEl) {
+      if (currentSortCol === col.toLowerCase()) {
+        iconEl.textContent = currentSortDir === 'asc' ? '▲' : '▼';
+      } else {
+        iconEl.textContent = '';
+      }
     }
   });
 
-  // 3. Paginate
-  const totalEntries = filtered.length;
-  const size = pageSize === 'all' ? totalEntries : parseInt(pageSize, 10);
-  const totalPages = Math.ceil(totalEntries / (size || 1)) || 1;
-
-  if (currentPage > totalPages) currentPage = totalPages;
-  if (currentPage < 1) currentPage = 1;
-
-  const startIdx = (currentPage - 1) * size;
-  const pageEntries = pageSize === 'all' ? filtered : filtered.slice(startIdx, startIdx + size);
-
-  // 4. Render Rows
+  // Render Table Rows
   let html = '';
   pageEntries.forEach(entry => {
     const deltaStr = entry.deltaMs ? formatDelta(Math.floor(entry.deltaMs / 1000)) : '--';
@@ -296,20 +303,22 @@ function renderStandardTable() {
   });
 
   resultsBody.innerHTML = html;
-  updatePaginationUI(totalEntries, totalPages);
+  updateScrollStatus(pageEntries.length, totalEntries);
 }
 
-function updatePaginationUI(totalEntries, totalPages) {
-  if (totalEntries === 0) {
-    document.getElementById('pageInfo').textContent = 'No matching entries';
-    prevPageBtn.disabled = true;
-    nextPageBtn.disabled = true;
-    return;
-  }
+function updateScrollStatus(renderedCount, totalEntries) {
+  if (!scrollStatus || !scrollLoader) return;
 
-  document.getElementById('pageInfo').textContent = `Page ${currentPage} of ${totalPages} (${totalEntries} entries)`;
-  prevPageBtn.disabled = currentPage <= 1;
-  nextPageBtn.disabled = currentPage >= totalPages;
+  if (totalEntries === 0) {
+    scrollStatus.textContent = 'No matching entries found.';
+    scrollLoader.style.display = 'none';
+  } else if (renderedCount >= totalEntries) {
+    scrollStatus.textContent = `Showing all ${totalEntries} entries.`;
+    scrollLoader.style.display = 'none';
+  } else {
+    scrollStatus.textContent = `Showing ${renderedCount} of ${totalEntries} entries...`;
+    scrollLoader.style.display = 'block';
+  }
 }
 
 function renderAnalytics(categoryTotals, zoneTotals, totalSec, zoneEntries) {
@@ -448,3 +457,6 @@ function exportCampaignCSV() {
 
   downloadBlob(csv, `poe_campaign_splits_${dateSelect.value}.csv`);
 }
+
+// Initialize Observer on boot
+initInfiniteScroll();

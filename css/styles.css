@@ -256,31 +256,33 @@ th.sortable:hover { color: var(--accent); }
 
 tr.long-stop { background-color: var(--danger-bg); }
 
-/* Pagination Controls */
-.pagination {
+/* Infinite Scroll Sentinel & Loader */
+.scroll-sentinel {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
   align-items: center;
-  margin-top: 1rem;
-  padding-top: 0.5rem;
-  border-top: 1px solid var(--border);
-  flex-wrap: wrap;
+  justify-content: center;
   gap: 0.5rem;
-}
-
-.pagination-btn {
-  background: var(--bg);
-  border: 1px solid var(--border);
-  color: var(--text);
-  padding: 0.35rem 0.75rem;
-  border-radius: 4px;
-  cursor: pointer;
+  padding: 1.5rem 0;
+  color: var(--text-muted);
   font-size: 0.85rem;
-  font-weight: 600;
 }
 
-.pagination-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
-.pagination-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.loader {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border);
+  border-bottom-color: var(--accent);
+  border-radius: 50%;
+  display: inline-block;
+  animation: rotation 1s linear infinite;
+}
+
+@keyframes rotation {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
 .page-info { font-size: 0.85rem; color: var(--text-muted); }
 
 /* Badges */
