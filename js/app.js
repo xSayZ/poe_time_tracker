@@ -65,9 +65,14 @@ document.addEventListener('click', (e) => {
   }
 });
 
-// Drag & Drop Handlers
-dropzone.addEventListener('click', () => fileInput.click());
-dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+// Drag & Drop Handlers (Checked e.target to prevent event loops)
+dropzone.addEventListener('click', (e) => {
+  if (e.target !== fileInput) fileInput.click();
+});
+dropzone.addEventListener('dragover', (e) => { 
+  e.preventDefault(); 
+  dropzone.classList.add('dragover'); 
+});
 dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
 dropzone.addEventListener('drop', (e) => {
   e.preventDefault();
@@ -238,8 +243,8 @@ function getFilteredAndSortedEntries() {
   filtered.sort((a, b) => {
     let valA, valB;
     if (currentSortCol === 'timestamp') {
-      valA = a.originalIndex;
-      valB = b.originalIndex;
+      valA = a.originalIndex !== undefined ? a.originalIndex : a.timestamp;
+      valB = b.originalIndex !== undefined ? b.originalIndex : b.timestamp;
     } else if (currentSortCol === 'delta') {
       valA = a.deltaMs || 0;
       valB = b.deltaMs || 0;
