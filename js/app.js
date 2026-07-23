@@ -8,6 +8,7 @@ import {
   calculateCampaignSplits,
   entryKey
 } from './tracker.js';
+import { initTimingChart, updateTimingChart, clearTimingChart, refreshTimingChartTheme } from './chart.js';
 
 function initVersion() {
   document.title = `${APP_NAME} ${APP_VERSION}`;
@@ -69,6 +70,21 @@ const compareContent = document.getElementById('compareContent');
 const exportBtnGroup = document.getElementById('exportBtnGroup');
 
 let currentRunsB = [];
+
+// --- Zone Timing Chart ---
+initTimingChart({
+  toggleBtn: document.getElementById('chartToggleBtn'),
+  panel: document.getElementById('timingChartPanel'),
+  canvas: document.getElementById('timingChartCanvas'),
+  canvasWrap: document.getElementById('chartCanvasWrap'),
+  loading: document.getElementById('chartLoading'),
+  emptyMsg: document.getElementById('chartEmptyMsg'),
+  actFilterGroup: document.getElementById('actFilterGroup'),
+  percentileSelect: document.getElementById('percentileSelect'),
+  resetZoomBtn: document.getElementById('chartResetZoomBtn'),
+  outlierCount: document.getElementById('outlierCount'),
+  outlierBody: document.getElementById('outlierTableBody')
+});
 
 // Local Storage initialization
 if (gapInput) gapInput.value = localStorage.getItem('poe_gap') || 30;
@@ -385,6 +401,7 @@ function displayRun(resetVisible = true) {
     if (resultsBody) resultsBody.innerHTML = '';
     if (summaryBar) summaryBar.innerHTML = '';
     updateScrollStatus(0, 0);
+    clearTimingChart();
     return;
   }
 
@@ -393,6 +410,7 @@ function displayRun(resetVisible = true) {
     if (resultsBody) resultsBody.innerHTML = '';
     if (summaryBar) summaryBar.innerHTML = '';
     updateScrollStatus(0, 0);
+    clearTimingChart();
     return;
   }
 
@@ -403,6 +421,7 @@ function displayRun(resetVisible = true) {
 
   renderAnalytics(categoryTotals, zoneTotals, totalTrackedSeconds, zoneEntries);
   renderStandardTable(resetVisible);
+  updateTimingChart(run, processed);
 }
 
 // --- Infinite Scroll Setup ---
@@ -946,5 +965,6 @@ if (themeToggleBtn) {
       localStorage.setItem('poe_theme', 'light');
       themeToggleBtn.textContent = 'Dark Mode';
     }
+    refreshTimingChartTheme();
   });
 }

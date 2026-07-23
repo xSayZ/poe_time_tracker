@@ -118,7 +118,46 @@
     <!-- Standard Session View Container -->
     <div id="standardView">
       <div class="summary-bar" id="summaryBar" aria-live="polite"></div>
-      
+
+      <div class="chart-toggle-row">
+        <button class="btn btn-secondary" id="chartToggleBtn" aria-expanded="false" aria-controls="timingChartPanel">Show Timing Chart</button>
+      </div>
+
+      <section id="timingChartPanel" class="chart-panel" style="display: none;" aria-label="Zone Timing Chart">
+        <div class="chart-controls">
+          <div class="chart-control-group" id="actFilterGroup" aria-label="Filter by act"></div>
+          <div class="chart-control-group">
+            <label for="percentileSelect">Outlier threshold</label>
+            <select id="percentileSelect">
+              <option value="90" selected>90th percentile</option>
+              <option value="95">95th percentile</option>
+            </select>
+          </div>
+          <button class="btn btn-secondary" id="chartResetZoomBtn" type="button">Reset Zoom</button>
+        </div>
+
+        <div class="chart-canvas-wrap" id="chartCanvasWrap">
+          <canvas id="timingChartCanvas" role="img" aria-label="Scatter plot of time spent per zone visit, in visit order. Full values are listed in the zone table above and the outlier table below."></canvas>
+        </div>
+        <div class="chart-loading" id="chartLoading" style="display: none;">Loading chart library…</div>
+        <div class="chart-empty-msg" id="chartEmptyMsg" style="display: none;"></div>
+
+        <div class="outlier-table-wrap">
+          <h4 class="outlier-title">Outliers (<span id="outlierCount">0</span> above threshold)</h4>
+          <table id="outlierTable" aria-label="Outlier zone entries">
+            <thead>
+              <tr>
+                <th scope="col">Zone</th>
+                <th scope="col">Timestamp</th>
+                <th scope="col">Time Spent</th>
+                <th scope="col">Category</th>
+              </tr>
+            </thead>
+            <tbody id="outlierTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
       <div class="table-controls">
         <label for="searchInput" class="sr-only">Search zone name</label>
         <input type="text" id="searchInput" class="search-input" placeholder="Search zone name (e.g., Blood Aqueduct, Hideout)..." aria-label="Search zone name">

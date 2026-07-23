@@ -158,3 +158,41 @@ export function calculateCampaignSplits(runEntries) {
 
   return splits;
 }
+
+/**
+ * Walks a run's raw entries (zone + level, in chronological order) to attach the
+ * character's current level and current campaign act to each zone entry — data
+ * that the log only records sparsely (on level-up lines / act-trigger zones),
+ * not on every entry. Used by the zone timing chart to label/filter points that
+ * otherwise only carry a zone name and a duration.
+ *
+ * Returns a Map from entryKey(entry) to { level, act }, where level/act reflect
+ * whatever was last known as of that entry (null if nothing has been observed
+ * yet in this run).
+ */
+export function deriveZoneContext(runEntries) {
+  let currentLevel = null;
+  let currentActIdx = 0;
+  const context = new Map();
+
+  for (const entry of runEntries) {
+    if (entry.type === 'level') {
+      currentLevel = entry.level;
+      continue;
+    }
+
+    if (entry.type === 'zone') {
+      if (currentActIdx < ACT_TRIGGERS.length) {
+        const target = ACT_TRIGGERS[currentActIdx];
+        if (entry.zone.toLowerCase().includes(target.zone.toLowerCase())) {
+          currentActIdx++;
+        }
+      }
+
+      const reachedAct = currentActIdx > 0 ? ACT_TRIGGERS[currentActIdx - 1].act : null;
+      context.set(entryKey(entry), { level: currentLevel, act: reachedAct });
+    }
+  }
+
+  return context;
+}
