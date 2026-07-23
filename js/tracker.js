@@ -61,11 +61,15 @@ export function entryKey(entry) {
  * Processes zone entries to calculate deltas, long stops, and category totals.
  * levelEntries (optional) are matched to whichever zone the player was in when they leveled up.
  *
- * excludedKeys (optional Set of entryKey values) marks entries whose incoming gap — the delta
- * between it and the previous entry — should never count as tracked time (e.g. an AFK/logout
- * gap that the client log still reports as a normal delta). That gap is simply dropped, not
- * merged onto a neighboring entry: the excluded entry's own timestamp still anchors the delta
- * for whatever comes next, so no time gets carried over anywhere else.
+ * Each entry's delta is the time spent IN that zone — i.e. the gap until the NEXT entry, not
+ * since the previous one — so the duration is shown/attributed on the row for the zone that
+ * actually consumed that time (the last entry in a run has no known delta, since there's no
+ * next entry to measure against).
+ *
+ * excludedKeys (optional Set of entryKey values) marks entries whose own delta should never
+ * count as tracked time (e.g. an AFK/logout gap the client log still reports against that
+ * zone). Each row's delta is computed independently of its neighbors' excluded state, so
+ * excluding one entry never affects any other entry's delta.
  */
 export function processRunData(zoneEntries, thresholdMinutes, levelEntries = [], excludedKeys = null) {
   const thresholdMs = thresholdMinutes * 60 * 1000;
@@ -74,26 +78,23 @@ export function processRunData(zoneEntries, thresholdMinutes, levelEntries = [],
   const zoneTotals = {};
   const categoryTotals = { hideout: 0, map: 0, town: 0 };
   let totalTrackedSeconds = 0;
-  let prevTime = null;
 
   const processed = zoneEntries.map((entry, i) => {
-    const deltaMs = prevTime !== null ? (entry.timestamp - prevTime) : null;
+    const hasNext = i < zoneEntries.length - 1;
+    const deltaMs = hasNext ? (zoneEntries[i + 1].timestamp - entry.timestamp) : null;
     const excluded = isExcluded(entry);
     const isLong = !excluded && Boolean(deltaMs) && deltaMs > thresholdMs;
 
-    if (prevTime !== null && !excluded) {
-      const prevEntry = zoneEntries[i - 1];
+    if (hasNext && !excluded) {
       const durationSec = Math.floor(deltaMs / 1000);
 
-      zoneTotals[prevEntry.zone] = (zoneTotals[prevEntry.zone] || 0) + durationSec;
-      const cat = categorizeZone(prevEntry.zone);
+      zoneTotals[entry.zone] = (zoneTotals[entry.zone] || 0) + durationSec;
+      const cat = categorizeZone(entry.zone);
       categoryTotals[cat] += durationSec;
       totalTrackedSeconds += durationSec;
     }
 
-    prevTime = entry.timestamp;
-
-    const windowEnd = i < zoneEntries.length - 1 ? zoneEntries[i + 1].timestamp : Infinity;
+    const windowEnd = hasNext ? zoneEntries[i + 1].timestamp : Infinity;
     const levelUpsInZone = levelEntries.filter(l => l.timestamp >= entry.timestamp && l.timestamp < windowEnd);
     const leveledUpTo = levelUpsInZone.length ? levelUpsInZone[levelUpsInZone.length - 1].level : null;
 
