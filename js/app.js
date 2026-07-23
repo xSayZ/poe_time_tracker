@@ -1,11 +1,12 @@
 import { APP_VERSION, APP_NAME } from './version.js';
 import { formatDelta, copyPath, downloadBlob } from './utils.js';
 import { parseClientLogFile } from './parser.js';
-import { 
-  categorizeZone, 
-  groupEntriesIntoRuns, 
-  processRunData, 
-  calculateCampaignSplits 
+import {
+  categorizeZone,
+  groupEntriesIntoRuns,
+  processRunData,
+  calculateCampaignSplits,
+  entryKey
 } from './tracker.js';
 
 function initVersion() {
@@ -27,10 +28,12 @@ let currentRunProcessed = [];
 let currentSearchTerm = '';
 let currentSortCol = 'timestamp';
 let currentSortDir = 'asc';
+let excludedKeys = new Set();
 
-let visibleCount = 50; 
+let visibleCount = 50;
 const BATCH_SIZE = 50;
 let observer = null;
+let compareMode = false;
 
 // --- DOM References ---
 const dropzone = document.getElementById('dropzone');
@@ -56,6 +59,16 @@ const scrollStatus = document.getElementById('scrollStatus');
 const loadMoreBtn = document.getElementById('loadMoreBtn');
 const gapInput = document.getElementById('gap');
 const thresholdInput = document.getElementById('threshold');
+const compareToggle = document.getElementById('compareToggle');
+const compareDateContainer = document.getElementById('compareDateContainer');
+const dateSelectB = document.getElementById('dateSelectB');
+const runSelectBContainer = document.getElementById('runSelectBContainer');
+const runSelectB = document.getElementById('runSelectB');
+const compareView = document.getElementById('compareView');
+const compareContent = document.getElementById('compareContent');
+const exportBtnGroup = document.getElementById('exportBtnGroup');
+
+let currentRunsB = [];
 
 // Local Storage initialization
 if (gapInput) gapInput.value = localStorage.getItem('poe_gap') || 30;
@@ -124,17 +137,54 @@ if (fileInput) {
 
 // View mode switcher
 if (viewMode) {
-  viewMode.addEventListener('change', () => {
-    if (viewMode.value === 'campaign') {
-      standardView.style.display = 'none';
-      campaignView.style.display = 'block';
-      displayCampaignSplits();
-    } else {
-      standardView.style.display = 'block';
-      campaignView.style.display = 'none';
-      displayRun();
-    }
+  viewMode.addEventListener('change', () => refreshDisplay());
+}
+
+// Compare mode toggle
+if (compareToggle) {
+  compareToggle.addEventListener('change', () => {
+    compareMode = compareToggle.checked;
+    if (compareDateContainer) compareDateContainer.style.display = compareMode ? 'flex' : 'none';
+    if (runSelectBContainer) runSelectBContainer.style.display = compareMode ? 'flex' : 'none';
+    if (compareMode) populateRunSelectB();
+    refreshDisplay();
   });
+}
+
+if (dateSelectB) {
+  dateSelectB.addEventListener('change', () => {
+    populateRunSelectB();
+    refreshDisplay();
+  });
+}
+
+if (runSelectB) {
+  runSelectB.addEventListener('change', () => refreshDisplay());
+}
+
+// Renders whichever view (standard, campaign, or comparison) is currently active
+function refreshDisplay() {
+  if (compareMode) {
+    if (standardView) standardView.style.display = 'none';
+    if (campaignView) campaignView.style.display = 'none';
+    if (compareView) compareView.style.display = 'block';
+    if (exportBtnGroup) exportBtnGroup.style.display = 'none';
+    renderComparison();
+    return;
+  }
+
+  if (compareView) compareView.style.display = 'none';
+  if (exportBtnGroup) exportBtnGroup.style.display = 'flex';
+
+  if (viewMode && viewMode.value === 'campaign') {
+    if (standardView) standardView.style.display = 'none';
+    if (campaignView) campaignView.style.display = 'block';
+    displayCampaignSplits();
+  } else {
+    if (standardView) standardView.style.display = 'block';
+    if (campaignView) campaignView.style.display = 'none';
+    displayRun();
+  }
 }
 
 // Search Filtering
@@ -158,6 +208,23 @@ if (loadMoreBtn) {
   loadMoreBtn.addEventListener('click', () => loadMoreRows());
 }
 
+// Right-click a row to exclude/re-include it from Standard Session calculations
+if (resultsBody) {
+  resultsBody.addEventListener('contextmenu', (e) => {
+    const row = e.target.closest('tr[data-entry-key]');
+    if (!row) return;
+    e.preventDefault();
+
+    const key = row.dataset.entryKey;
+    if (excludedKeys.has(key)) {
+      excludedKeys.delete(key);
+    } else {
+      excludedKeys.add(key);
+    }
+    displayRun(false);
+  });
+}
+
 function handleSort(column) {
   if (currentSortCol === column) {
     currentSortDir = currentSortDir === 'asc' ? 'desc' : 'asc';
@@ -173,6 +240,7 @@ async function handleFileSelect(file) {
   if (progressBar) progressBar.style.display = 'block';
   if (progressFill) progressFill.style.width = '0%';
 
+  excludedKeys = new Set();
   rawLogText = await file.text();
 
   parsedEntries = await parseClientLogFile(file, (percent) => {
@@ -198,9 +266,15 @@ async function handleFileSelect(file) {
 
 function populateDates() {
   const dates = [...new Set(parsedEntries.map(e => e.dateStr))];
+  const dateOptionsHtml = dates.map(d => `<option value="${d}">${d}</option>`).join('') + '<option value="all">All Dates</option>';
+
   if (dateSelect) {
-    dateSelect.innerHTML = dates.map(d => `<option value="${d}">${d}</option>`).join('') + '<option value="all">All Dates</option>';
+    dateSelect.innerHTML = dateOptionsHtml;
     dateSelect.value = dates[dates.length - 1];
+  }
+  if (dateSelectB) {
+    dateSelectB.innerHTML = dateOptionsHtml;
+    dateSelectB.value = dates[dates.length - 1];
   }
   recalculate();
 }
@@ -208,70 +282,127 @@ function populateDates() {
 if (dateSelect) dateSelect.addEventListener('change', recalculate);
 if (runSelect) {
   runSelect.addEventListener('change', () => {
-    if (viewMode.value === 'campaign') {
-      displayCampaignSplits();
-    } else {
-      displayRun();
-    }
+    syncRunSelectBAvailability();
+    refreshDisplay();
   });
+}
+
+// Groups entries for an arbitrary date (or 'all') into runs using the current gap setting
+function getRunsForDate(dateStr) {
+  const filtered = dateStr === 'all'
+    ? parsedEntries
+    : parsedEntries.filter(e => e.dateStr === dateStr);
+
+  const sorted = [...filtered].sort((a, b) => a.timestamp - b.timestamp);
+  const gapMinutes = parseInt(gapInput ? gapInput.value : 30, 10);
+  return groupEntriesIntoRuns(sorted, gapMinutes);
+}
+
+function buildRunOptionsHtml(runs) {
+  return runs.map((r, i) => {
+    const start = r[0].timeStr;
+    const end = r[r.length - 1].timeStr;
+    const zoneCount = r.filter(e => e.type === 'zone').length;
+    return `<option value="${i}">Run ${i + 1} — ${r[0].dateStr} (${start} - ${end}) [${zoneCount} zones]</option>`;
+  }).join('') + '<option value="all">All Runs Combined</option>';
+}
+
+// Repopulates the "Compare To" run list for whichever date is selected in dateSelectB
+function populateRunSelectB() {
+  if (!runSelectB) return;
+
+  const dateVal = dateSelectB ? dateSelectB.value : (dateSelect ? dateSelect.value : 'all');
+  currentRunsB = getRunsForDate(dateVal);
+
+  runSelectB.innerHTML = buildRunOptionsHtml(currentRunsB);
+  runSelectB.value = currentRunsB.length > 1 ? String(currentRunsB.length - 1) : "0";
+
+  syncRunSelectBAvailability();
+}
+
+// Disables the option in runSelectB that would resolve to the exact same run as runSelect (Run A),
+// so the same run can't be picked on both sides of a comparison
+function syncRunSelectBAvailability() {
+  if (!runSelectB) return;
+
+  const dateA = dateSelect ? dateSelect.value : 'all';
+  const dateB = dateSelectB ? dateSelectB.value : 'all';
+  const idxA = runSelect ? runSelect.value : '0';
+  const sameDate = dateA === dateB;
+
+  let needsReselect = false;
+  Array.from(runSelectB.options).forEach(opt => {
+    const isSameRun = sameDate && opt.value === idxA;
+    opt.disabled = isSameRun;
+    if (isSameRun && runSelectB.value === opt.value) needsReselect = true;
+  });
+
+  if (needsReselect) {
+    const firstEnabled = Array.from(runSelectB.options).find(o => !o.disabled);
+    if (firstEnabled) runSelectB.value = firstEnabled.value;
+  }
+}
+
+// Whether there are at least two distinct runs anywhere in the parsed log (needed to enable Compare)
+function hasAtLeastTwoRunsOverall() {
+  const dates = [...new Set(parsedEntries.map(e => e.dateStr))];
+  if (dates.length > 1) return true;
+  return currentRuns.length > 1;
 }
 
 function recalculate() {
   if (!parsedEntries.length) return;
-  
+
   const selectedDate = dateSelect ? dateSelect.value : 'all';
-  const filtered = selectedDate === 'all' 
-    ? parsedEntries 
-    : parsedEntries.filter(e => e.dateStr === selectedDate);
-
-  filtered.sort((a, b) => a.timestamp - b.timestamp);
-
-  const gapMinutes = parseInt(gapInput ? gapInput.value : 30, 10);
-  currentRuns = groupEntriesIntoRuns(filtered, gapMinutes);
+  currentRuns = getRunsForDate(selectedDate);
 
   if (runSelect) {
-    runSelect.innerHTML = currentRuns.map((r, i) => {
-      const start = r[0].timeStr;
-      const end = r[r.length - 1].timeStr;
-      const zoneCount = r.filter(e => e.type === 'zone').length;
-      return `<option value="${i}">Run ${i + 1} (${start} - ${end}) [${zoneCount} zones]</option>`;
-    }).join('') + '<option value="all">All Runs Combined</option>';
-
+    runSelect.innerHTML = buildRunOptionsHtml(currentRuns);
     runSelect.value = "0";
   }
 
-  if (viewMode && viewMode.value === 'campaign') {
-    displayCampaignSplits();
-  } else {
-    displayRun();
+  populateRunSelectB();
+
+  if (compareToggle) {
+    const enoughRuns = hasAtLeastTwoRunsOverall();
+    compareToggle.disabled = !enoughRuns;
+    if (!enoughRuns && compareMode) {
+      compareMode = false;
+      compareToggle.checked = false;
+      if (compareDateContainer) compareDateContainer.style.display = 'none';
+      if (runSelectBContainer) runSelectBContainer.style.display = 'none';
+    }
   }
+
+  refreshDisplay();
 }
 
-function displayRun() {
+function displayRun(resetVisible = true) {
   const runIdx = runSelect ? runSelect.value : "0";
   const run = runIdx === 'all' ? currentRuns.flat() : currentRuns[parseInt(runIdx, 10)];
-  
-  if (!run || !run.length) { 
-    if (resultsBody) resultsBody.innerHTML = ''; 
+
+  if (!run || !run.length) {
+    if (resultsBody) resultsBody.innerHTML = '';
     if (summaryBar) summaryBar.innerHTML = '';
     updateScrollStatus(0, 0);
-    return; 
+    return;
   }
 
   const zoneEntries = run.filter(e => e.type === 'zone');
-  if (!zoneEntries.length) { 
-    if (resultsBody) resultsBody.innerHTML = ''; 
+  if (!zoneEntries.length) {
+    if (resultsBody) resultsBody.innerHTML = '';
     if (summaryBar) summaryBar.innerHTML = '';
     updateScrollStatus(0, 0);
-    return; 
+    return;
   }
 
+  const levelEntries = run.filter(e => e.type === 'level');
   const thresholdMinutes = parseInt(thresholdInput ? thresholdInput.value : 6, 10);
-  const { processed, categoryTotals, zoneTotals, totalTrackedSeconds } = processRunData(zoneEntries, thresholdMinutes);
+  const { processed, categoryTotals, zoneTotals, totalTrackedSeconds } = processRunData(zoneEntries, thresholdMinutes, levelEntries, excludedKeys);
   currentRunProcessed = processed;
 
   renderAnalytics(categoryTotals, zoneTotals, totalTrackedSeconds, zoneEntries);
-  renderStandardTable(true);
+  renderStandardTable(resetVisible);
 }
 
 // --- Infinite Scroll Setup ---
@@ -365,17 +496,23 @@ function renderStandardTable(resetCount = true) {
 
   let html = '';
   pageEntries.forEach(entry => {
-    const deltaStr = entry.deltaMs ? formatDelta(Math.floor(entry.deltaMs / 1000)) : '--';
+    const deltaStr = entry.isExcluded ? '--' : (entry.deltaMs ? formatDelta(Math.floor(entry.deltaMs / 1000)) : '--');
     const isTown = entry.category === 'town';
+    const rowClasses = [
+      entry.isLong ? 'row-long-stop' : '',
+      entry.isExcluded ? 'row-excluded' : ''
+    ].filter(Boolean).join(' ');
 
     html += `
-      <tr class="${entry.isLong ? 'row-long-stop' : ''}">
+      <tr class="${rowClasses}" data-entry-key="${entry.entryKey}" title="Right-click to ${entry.isExcluded ? 're-include' : 'exclude'} this entry">
         <td>${entry.dateStr} ${entry.timeStr}</td>
         <td>${deltaStr}</td>
         <td>
           ${entry.zone}
-          ${isTown ? '<span class="badge badge-town"><span aria-hidden="true"></span>TOWN</span>' : ''}
-          ${entry.isLong ? '<span class="badge badge-danger"><span aria-hidden="true">⏸ </span>LONG STOP</span>' : ''}
+          ${isTown ? '<span class="badge badge-town">TOWN</span>' : ''}
+          ${entry.isLong ? '<span class="badge badge-danger">LONG STOP</span>' : ''}
+          ${entry.leveledUpTo ? `<span class="badge badge-level">LEVEL ${entry.leveledUpTo}</span>` : ''}
+          ${entry.isExcluded ? '<span class="badge badge-excluded">EXCLUDED</span>' : ''}
         </td>
       </tr>
     `;
@@ -413,7 +550,7 @@ function renderAnalytics(categoryTotals, zoneTotals, totalSec, zoneEntries) {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5);
 
-  const spanMs = zoneEntries[zoneEntries.length - 1].timestamp - zoneEntries[0].timestamp;
+  const excludedCount = zoneEntries.filter(e => excludedKeys.has(entryKey(e))).length;
 
   if (summaryBar) {
     summaryBar.innerHTML = `
@@ -434,8 +571,8 @@ function renderAnalytics(categoryTotals, zoneTotals, totalSec, zoneEntries) {
         </div>
 
         <div style="display: flex; justify-content: space-between; border-top: 1px solid var(--border); padding-top: 0.5rem; font-size: 0.85rem;">
-          <span>Entries: <strong>${zoneEntries.length}</strong></span>
-          <span>Run Duration: <strong>${formatDelta(Math.floor(spanMs / 1000))}</strong></span>
+          <span>Entries: <strong>${zoneEntries.length}</strong>${excludedCount ? ` <span class="diff-neutral">(${excludedCount} excluded)</span>` : ''}</span>
+          <span>Run Duration: <strong>${formatDelta(totalSec)}</strong></span>
         </div>
       </div>
     `;
@@ -462,7 +599,7 @@ function displayCampaignSplits() {
   let html = `
     <div class="campaign-title">Campaign Act Split Report</div>
     <div class="campaign-subtitle">Total Campaign Duration: <strong>${formatDelta(totalTime)}</strong></div>
-    <table aria-label="Campaign Act Split Breakdown">
+    <table id="campaignSplitTable" aria-label="Campaign Act Split Breakdown">
       <thead>
         <tr>
           <th scope="col">Act / Stage</th>
@@ -492,6 +629,182 @@ function displayCampaignSplits() {
 
   html += `</tbody></table>`;
   if (campaignContent) campaignContent.innerHTML = html;
+}
+
+// --- Run Comparison ---
+
+function formatSignedDelta(sec) {
+  const sign = sec > 0 ? '+' : sec < 0 ? '-' : '';
+  return `${sign}${formatDelta(Math.abs(sec))}`;
+}
+
+function diffClass(sec) {
+  if (sec > 0) return 'diff-positive';
+  if (sec < 0) return 'diff-negative';
+  return 'diff-neutral';
+}
+
+function getRunLabel(selectEl) {
+  if (!selectEl || !selectEl.options.length) return 'Run';
+  const opt = selectEl.options[selectEl.selectedIndex];
+  return opt ? opt.text : 'Run';
+}
+
+function renderComparison() {
+  const dateA = dateSelect ? dateSelect.value : 'all';
+  const dateB = dateSelectB ? dateSelectB.value : 'all';
+  const idxA = runSelect ? runSelect.value : "0";
+  const idxB = runSelectB ? runSelectB.value : "0";
+
+  if (dateA === dateB && idxA === idxB) {
+    if (compareContent) compareContent.innerHTML = `<p class="empty-msg">Choose two different runs to compare — pick a different run or a different Compare Date.</p>`;
+    return;
+  }
+
+  const runA = idxA === 'all' ? currentRuns.flat() : currentRuns[parseInt(idxA, 10)];
+  const runB = idxB === 'all' ? currentRunsB.flat() : currentRunsB[parseInt(idxB, 10)];
+
+  if (!runA || !runA.length || !runB || !runB.length) {
+    if (compareContent) compareContent.innerHTML = `<p class="empty-msg">Select two valid runs to compare.</p>`;
+    return;
+  }
+
+  if (viewMode && viewMode.value === 'campaign') {
+    renderCampaignComparison(runA, runB);
+  } else {
+    renderStandardComparison(runA, runB);
+  }
+}
+
+function renderStandardComparison(runA, runB) {
+  const zoneA = runA.filter(e => e.type === 'zone');
+  const zoneB = runB.filter(e => e.type === 'zone');
+
+  if (!zoneA.length || !zoneB.length) {
+    if (compareContent) compareContent.innerHTML = `<p class="empty-msg">Both selected runs need zone entries to compare.</p>`;
+    return;
+  }
+
+  const thresholdMinutes = parseInt(thresholdInput ? thresholdInput.value : 6, 10);
+  const dataA = processRunData(zoneA, thresholdMinutes, [], excludedKeys);
+  const dataB = processRunData(zoneB, thresholdMinutes, [], excludedKeys);
+
+  const rows = [
+    { label: 'Total Duration', a: dataA.totalTrackedSeconds, b: dataB.totalTrackedSeconds, isTime: true },
+    { label: 'Map/Zone Time', a: dataA.categoryTotals.map, b: dataB.categoryTotals.map, isTime: true },
+    { label: 'Hideout Time', a: dataA.categoryTotals.hideout, b: dataB.categoryTotals.hideout, isTime: true },
+    { label: 'Town Time', a: dataA.categoryTotals.town, b: dataB.categoryTotals.town, isTime: true },
+    { label: 'Zone Entries', a: zoneA.length, b: zoneB.length, isTime: false }
+  ];
+
+  let tableRows = '';
+  rows.forEach(r => {
+    const diff = r.b - r.a;
+    const valA = r.isTime ? formatDelta(r.a) : r.a;
+    const valB = r.isTime ? formatDelta(r.b) : r.b;
+    const diffStr = r.isTime ? formatSignedDelta(diff) : (diff > 0 ? `+${diff}` : String(diff));
+    const cls = r.isTime ? diffClass(diff) : 'diff-neutral';
+
+    tableRows += `
+      <tr>
+        <td>${r.label}</td>
+        <td>${valA}</td>
+        <td>${valB}</td>
+        <td class="diff-cell ${cls}">${diffStr}</td>
+      </tr>
+    `;
+  });
+
+  if (compareContent) {
+    compareContent.innerHTML = `
+      <div class="campaign-title">Run Comparison</div>
+      <div class="campaign-subtitle">${getRunLabel(runSelect)} <strong>vs</strong> ${getRunLabel(runSelectB)}</div>
+      <table id="standardCompareTable" aria-label="Standard Run Comparison">
+        <thead>
+          <tr>
+            <th scope="col">Metric</th>
+            <th scope="col">Run A</th>
+            <th scope="col">Run B</th>
+            <th scope="col">Diff (B - A)</th>
+          </tr>
+        </thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    `;
+  }
+}
+
+function renderCampaignComparison(runA, runB) {
+  const splitsA = calculateCampaignSplits(runA);
+  const splitsB = calculateCampaignSplits(runB);
+
+  if (!splitsA.length || !splitsB.length) {
+    if (compareContent) compareContent.innerHTML = `<p class="empty-msg">Both selected runs need sequential campaign Act transitions to compare.</p>`;
+    return;
+  }
+
+  const maxLen = Math.max(splitsA.length, splitsB.length);
+  let rows = '';
+
+  for (let i = 0; i < maxLen; i++) {
+    const sA = splitsA[i];
+    const sB = splitsB[i];
+    const act = sA ? sA.act : sB.act;
+    const label = act === 'Maps' ? 'Endgame Maps' : `Act ${act}`;
+
+    const lvlA = sA ? `Lv. ${sA.level}` : '--';
+    const lvlB = sB ? `Lv. ${sB.level}` : '--';
+    const splitA = sA ? (i === 0 ? '--' : formatDelta(sA.splitSec)) : '--';
+    const splitB = sB ? (i === 0 ? '--' : formatDelta(sB.splitSec)) : '--';
+
+    let diffStr = '--';
+    let cls = 'diff-neutral';
+    if (sA && sB && i > 0) {
+      const diff = sB.splitSec - sA.splitSec;
+      diffStr = formatSignedDelta(diff);
+      cls = diffClass(diff);
+    }
+
+    rows += `
+      <tr>
+        <td><strong>${label}</strong></td>
+        <td>${lvlA}</td>
+        <td>${splitA}</td>
+        <td>${lvlB}</td>
+        <td>${splitB}</td>
+        <td class="diff-cell ${cls}">${diffStr}</td>
+      </tr>
+    `;
+  }
+
+  const totalA = splitsA.length > 1 ? splitsA[splitsA.length - 1].totalSec : 0;
+  const totalB = splitsB.length > 1 ? splitsB[splitsB.length - 1].totalSec : 0;
+  const totalDiff = totalB - totalA;
+
+  if (compareContent) {
+    compareContent.innerHTML = `
+      <div class="campaign-title">Campaign Split Comparison</div>
+      <div class="campaign-subtitle">
+        ${getRunLabel(runSelect)} (Total: <strong>${formatDelta(totalA)}</strong>)
+        <strong>vs</strong>
+        ${getRunLabel(runSelectB)} (Total: <strong>${formatDelta(totalB)}</strong>)
+        &mdash; Diff: <strong class="${diffClass(totalDiff)}">${formatSignedDelta(totalDiff)}</strong>
+      </div>
+      <table id="campaignCompareTable" aria-label="Campaign Act Split Comparison">
+        <thead>
+          <tr>
+            <th scope="col">Act / Stage</th>
+            <th scope="col">Run A Level</th>
+            <th scope="col">Run A Split</th>
+            <th scope="col">Run B Level</th>
+            <th scope="col">Run B Split</th>
+            <th scope="col">Split Diff</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+  }
 }
 
 // Markdown Export Logic
@@ -573,18 +886,17 @@ function exportStandardCSV() {
   if (!run || !run.length) return;
 
   const zoneEntries = run.filter(e => e.type === 'zone');
-  const thresholdMs = parseInt(thresholdInput ? thresholdInput.value : 6, 10) * 60 * 1000;
-  let csv = "timestamp,delta_seconds,delta_formatted,long_stop,zone,category\n";
-  let prevTime = null;
+  if (!zoneEntries.length) return;
 
-  zoneEntries.forEach(entry => {
-    const deltaMs = prevTime ? (entry.timestamp - prevTime) : 0;
-    const deltaSec = Math.floor(deltaMs / 1000);
-    const isLong = prevTime && deltaMs > thresholdMs;
-    const cat = categorizeZone(entry.zone);
+  const thresholdMinutes = parseInt(thresholdInput ? thresholdInput.value : 6, 10);
+  const { processed } = processRunData(zoneEntries, thresholdMinutes, [], excludedKeys);
 
-    csv += `"${entry.dateStr} ${entry.timeStr}",${deltaSec},"${formatDelta(deltaSec)}","${isLong ? 'YES' : ''}","${entry.zone.replace(/"/g, '""')}","${cat}"\n`;
-    prevTime = entry.timestamp;
+  let csv = "timestamp,delta_seconds,delta_formatted,long_stop,excluded,zone,category\n";
+
+  processed.forEach(entry => {
+    const deltaSec = (!entry.isExcluded && entry.deltaMs) ? Math.floor(entry.deltaMs / 1000) : 0;
+
+    csv += `"${entry.dateStr} ${entry.timeStr}",${deltaSec},"${formatDelta(deltaSec)}","${entry.isLong ? 'YES' : ''}","${entry.isExcluded ? 'YES' : ''}","${entry.zone.replace(/"/g, '""')}","${entry.category}"\n`;
   });
 
   downloadBlob(csv, `poe_session_${dateSelect ? dateSelect.value : 'export'}.csv`);

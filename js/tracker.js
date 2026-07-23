@@ -50,24 +50,41 @@ export function groupEntriesIntoRuns(entries, gapMinutes) {
 }
 
 /**
- * Processes zone entries to calculate deltas, long stops, and category totals
+ * Builds a stable identifier for a parsed entry, used to remember excluded rows
+ * across re-sorts, re-filters, and run/date regrouping.
  */
-export function processRunData(zoneEntries, thresholdMinutes) {
+export function entryKey(entry) {
+  return `${entry.timestamp.getTime()}|${entry.zone}`;
+}
+
+/**
+ * Processes zone entries to calculate deltas, long stops, and category totals.
+ * levelEntries (optional) are matched to whichever zone the player was in when they leveled up.
+ *
+ * excludedKeys (optional Set of entryKey values) marks entries whose incoming gap — the delta
+ * between it and the previous entry — should never count as tracked time (e.g. an AFK/logout
+ * gap that the client log still reports as a normal delta). That gap is simply dropped, not
+ * merged onto a neighboring entry: the excluded entry's own timestamp still anchors the delta
+ * for whatever comes next, so no time gets carried over anywhere else.
+ */
+export function processRunData(zoneEntries, thresholdMinutes, levelEntries = [], excludedKeys = null) {
   const thresholdMs = thresholdMinutes * 60 * 1000;
-  let prevTime = null;
+  const isExcluded = (entry) => excludedKeys ? excludedKeys.has(entryKey(entry)) : false;
 
   const zoneTotals = {};
   const categoryTotals = { hideout: 0, map: 0, town: 0 };
   let totalTrackedSeconds = 0;
+  let prevTime = null;
 
   const processed = zoneEntries.map((entry, i) => {
-    const deltaMs = prevTime ? (entry.timestamp - prevTime) : null;
-    const isLong = deltaMs && deltaMs > thresholdMs;
+    const deltaMs = prevTime !== null ? (entry.timestamp - prevTime) : null;
+    const excluded = isExcluded(entry);
+    const isLong = !excluded && Boolean(deltaMs) && deltaMs > thresholdMs;
 
-    if (prevTime && i > 0) {
+    if (prevTime !== null && !excluded) {
       const prevEntry = zoneEntries[i - 1];
       const durationSec = Math.floor(deltaMs / 1000);
-      
+
       zoneTotals[prevEntry.zone] = (zoneTotals[prevEntry.zone] || 0) + durationSec;
       const cat = categorizeZone(prevEntry.zone);
       categoryTotals[cat] += durationSec;
@@ -76,12 +93,19 @@ export function processRunData(zoneEntries, thresholdMinutes) {
 
     prevTime = entry.timestamp;
 
+    const windowEnd = i < zoneEntries.length - 1 ? zoneEntries[i + 1].timestamp : Infinity;
+    const levelUpsInZone = levelEntries.filter(l => l.timestamp >= entry.timestamp && l.timestamp < windowEnd);
+    const leveledUpTo = levelUpsInZone.length ? levelUpsInZone[levelUpsInZone.length - 1].level : null;
+
     return {
       ...entry,
       originalIndex: i,
-      deltaMs: deltaMs,
-      isLong: isLong,
-      category: categorizeZone(entry.zone)
+      deltaMs,
+      isLong,
+      category: categorizeZone(entry.zone),
+      leveledUpTo,
+      isExcluded: excluded,
+      entryKey: entryKey(entry)
     };
   });
 

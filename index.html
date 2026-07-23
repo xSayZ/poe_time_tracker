@@ -87,12 +87,32 @@
           <label for="runSelect">Select Run</label>
           <select id="runSelect"></select>
         </div>
+        <div class="field" id="compareToggleContainer">
+          <label for="compareToggle">Compare Runs</label>
+          <label class="switch-label">
+            <input type="checkbox" id="compareToggle">
+            <span>Enabled</span>
+          </label>
+        </div>
+        <div class="field" id="compareDateContainer" style="display: none;">
+          <label for="dateSelectB">Compare Date</label>
+          <select id="dateSelectB"></select>
+        </div>
+        <div class="field" id="runSelectBContainer" style="display: none;">
+          <label for="runSelectB">Compare To</label>
+          <select id="runSelectB"></select>
+        </div>
       </div>
 
-      <div class="btn-group">
+      <div class="btn-group" id="exportBtnGroup">
         <button class="btn btn-secondary" id="markdownBtn">Copy summary</button>
         <button class="btn" id="csvBtn">Export to CSV</button>
       </div>
+    </div>
+
+    <!-- Run Comparison View Container -->
+    <div id="compareView" style="display: none;">
+      <div id="compareContent"></div>
     </div>
 
     <!-- Standard Session View Container -->
